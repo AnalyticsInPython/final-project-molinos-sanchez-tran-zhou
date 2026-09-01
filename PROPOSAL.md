@@ -89,12 +89,18 @@ We exercised the API rather than assuming it worked:
   Responses carry `cache-control: max-age=31536000`, so the data is served as immutable.
 - **Full coverage.** The 2022 directory returns 6,256 institutions in a single 14.7MB
   response in about 1.5 seconds.
-- **The endpoints do not paginate.** `per_page`, `page`, and `limit` are all ignored and
-  the entire result set arrives at once. Ingest is therefore one request per
-  endpoint-year, not a pagination loop.
+- **The endpoints paginate above 10,000 rows.** ~~They do not paginate.~~ Corrected after
+  building the ingest: a response is capped at 10,000 rows and carries a `next` link.
+  Small result sets arrive whole, which is why it first looked as though there were no
+  pagination at all. `completions-cip-2` for 25 institutions is 71,010 rows and arrived as
+  10,000 rows covering 4 institutions until the ingest followed `next`. **Ingest must be a
+  pagination loop, and must assert the row count against the `count` the API reports** —
+  otherwise a full-directory pull truncates silently.
 - **Net price is broken out by income bracket** in `sfa-grants-and-net-price`, via an
   `income_level` field with five brackets plus an all-students total. Bracket boundaries
   will be confirmed against the IPEDS codebook before we display them.
+- **Filtering accepts comma-separated unitids.** `?unitid=186131,166683,...` returns all of
+  them, so a sample pull is one request per endpoint plus its pages, not one per school.
 
 ## Known Limitations
 
@@ -113,9 +119,23 @@ Stated up front, because they shape what we can honestly claim.
 - **Peer comparison is descriptive, not causal.** Comparing a school to its peers is a
   substantial improvement on comparing raw rates, but it does not establish that the
   school *caused* the difference. We will present it as what it is.
-- **Missing values are encoded as negative numbers.** IPEDS uses sentinels such as `-1`,
-  `-2`, and `-3` for missing and not-applicable. Read naively these become real values and
-  silently corrupt any average. Stripping them is part of the cleaning layer.
+- **Missing values are encoded as negative numbers — but not every negative is missing.**
+  IPEDS uses sentinels such as `-1`, `-2`, and `-3` for missing and not-applicable, and
+  read naively these become real values and silently corrupt any average. Stripping them
+  is part of the cleaning layer. **A negative `net_price` is the exception and must
+  survive cleaning:** grant aid can exceed the total cost of attendance, and in the
+  25-school sample five institutions post a genuinely negative net price (−$1,012 to
+  −$2,251) while zero rows carry −1, −2, or −3. The cleaning rule is therefore
+  column-specific — drop the exact sentinel values, never "drop anything below zero".
+- **Rates are stored as fractions, not percentages.** `completion_rate_150pct` and
+  `retention_rate` come back as 0.98, not 98. Rendered without conversion, a school with a
+  98% graduation rate displays as 1%.
+- **A top-25 sample cannot exercise the peer comparison.** Across the 25 selective
+  universities in `scripts/schools.py`, graduation rates span 91–98% and retention 96–99%.
+  There is no outcome spread to measure anything against, so the peer-adjusted analysis —
+  the part of this project that is not a table of numbers — needs a sample stratified
+  across sectors and selectivity, where open-access institutions sit at 20–45%. The
+  selective sample remains useful as a fixture for the comparison interface.
 
 ## Architecture
 
