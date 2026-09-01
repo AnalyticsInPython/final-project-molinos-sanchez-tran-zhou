@@ -46,3 +46,17 @@ We considered IPEDS and the Urban Institute Education Data Explorer as alternati
 - Schools outside the U.S.
 
 We're scoping the first version to U.S. four-year institutions only, roughly 300–500 of them.
+
+## Deliverable
+
+We're building a web app: a student answers a short set of plain-language questions about their scores, budget, field of study, and priorities, and gets back a ranked list of schools that fit them. The list is adjustable — reordering priorities changes the ranking, rather than producing a single fixed report.
+
+Alongside the app, a short written summary of what the underlying data can and can't tell us about fit, so the ranking doesn't imply more certainty than the data actually supports.
+
+## Next Steps
+
+1. Get a College Scorecard API key and pull a small sample of schools to confirm the data we need is actually there and usable.
+2. Decide how a student's stated priorities should translate into a ranking, and test that logic against a few real schools by hand.
+3. Build a first working version of the app end to end, even if rough.
+4. Try it with a few realistic student profiles and adjust whatever feels off.
+5. Regroup as a group to review progress and settle the scope for v1.
