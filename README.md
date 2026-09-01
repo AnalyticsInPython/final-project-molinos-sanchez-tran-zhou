@@ -5,12 +5,14 @@ Final project for the MBAxMS Python Bootcamp (Fall 2026).
 A college comparison tool that answers what a school will actually cost you at your
 family's income, and whether it does better than the schools it resembles.
 
-See [PROPOSAL.md](PROPOSAL.md) for the full proposal.
+- [PROPOSAL.md](PROPOSAL.md) — the full proposal, data sources and known limitations
+- [SCOPE.md](SCOPE.md) — where the seven comparison areas landed, and **three open questions
+  the group needs to answer** before we build screens
 
 ## Status
 
-Data scaffolding. The ingest runs and a 25-school sample database is reproducible; the
-schema, API and front end are not built yet.
+Data scaffolding. The ingest runs and a 25-school sample database is reproducible across all
+seven comparison areas. No schema, API or front end yet.
 
 ## Setup
 
