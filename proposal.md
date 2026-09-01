@@ -1,8 +1,8 @@
 # Final Project Proposal
 
-**Working title:** Higher Education Trends Explorer
+**Working title:** Shortlist — Undergrad School Matching Tool
 **Course:** MBAxMS Python Bootcamp — Fall 2026
-**Status:** Draft v0.1 — intentionally high level, to be refined with the group
+**Status:** Draft v0.2 — narrowed from the original trends-explorer idea to a more specific, buildable tool; ready for group review
 
 ---
 
@@ -19,68 +19,57 @@
 
 ## Idea in One Sentence
 
-Build a Python tool that pulls public data on U.S. colleges and universities and turns
-it into clear visualizations of how higher education has been changing over time.
+Build a Python tool that takes a student's academic stats and personal priorities — budget, financial aid need, field of study, and more — and ranks U.S. undergraduate schools against them, using public admissions data.
 
 ## Motivation
 
-There is a lot of good public data about American higher education — enrollment, cost,
-financial aid, completion, staffing, demographics — but it is spread across large,
-awkward federal datasets that are hard to explore casually. Most people asking simple
-questions ("has tuition at public universities actually outpaced inflation?", "which
-states are losing enrollment?") end up reading someone else's chart rather than looking
-at the data themselves.
+Most public higher-education data is built for administrators and researchers, not for the students actually making decisions with it. A prospective student comparing schools has to translate cost tables, admission-rate percentiles, and financial-aid formulas into an answer to a much simpler question: which of these schools actually fit me?
 
-We want to build something that shortens that distance: pull the data programmatically,
-clean it into a tidy format, and produce visualizations that make trends legible.
+Instead of building general-purpose trend visualizations (our original idea in v0.1), we want to build something a student could actually use: a short set of plain-language questions about their scores, budget, and priorities, and a ranked, explainable list of schools back — not a black-box score, but one where the student can see why a school ranks where it does and adjust their priorities to watch the list change.
 
 ## Data Sources
 
-- **IPEDS** (Integrated Postsecondary Education Data System, NCES) — the core federal
-  survey of nearly every postsecondary institution in the U.S. Annual, institution-level,
-  goes back decades.
-- **Urban Institute Education Data Explorer** — a public API that wraps IPEDS and several
-  other education datasets in a much friendlier interface. Likely our primary access
-  path, with raw IPEDS files as a fallback.
+- **College Scorecard** (U.S. Dept. of Education) — the core data source for this project. A free, public API covering admission rates, SAT/ACT ranges, cost of attendance, net price by income bracket, aid received, graduation rates, and post-graduation earnings for nearly every degree-granting institution in the U.S. No licensing or access issues; an API key is issued instantly.
 
-Both are free and public. No licensing or access issues expected.
+We considered IPEDS and the Urban Institute Education Data Explorer (our original sources from v0.1) as alternatives. Scorecard covers what this narrower, ranking-focused use case needs on its own, so we're treating those as a fallback rather than a primary source unless scope grows.
+
+**Known gap:** Scorecard's financial-aid figures are based on FAFSA, the U.S. federal aid system, so they don't reflect what international students are actually offered. If the tool should be useful to international applicants, we'll need to supplement this with a manually curated list (e.g., the published set of schools that are need-blind for international students) rather than relying on Scorecard alone for that question.
 
 ## Rough Scope
 
-Still deliberately open. Candidate questions we might build the tool around:
+**Feasible with Scorecard data alone:**
+- Reach / Target / Safety classification, based on the student's SAT/ACT against each school's admitted range
+- Ranking by cost, net price, and aid against the student's stated budget
+- Ranking by graduation rate and post-graduation earnings
+- Filtering and weighting by school size, location, and public vs. private status
 
-- How have published tuition and net price moved over time, in-state vs. out-of-state?
-- How has enrollment shifted — by state, by institution size, by sector?
-- What do completion and retention rates look like across institution types?
-- Where does the gap between sticker price and what students actually pay show up most?
+**Not feasible with Scorecard alone (gaps, not blockers):**
+- Financial aid specifically for international students
+- Any signal on graduate-school preparation or research opportunities
+- Schools outside the U.S.
 
-We expect to narrow this to two or three questions once we have looked at what the data
-actually supports.
+We're scoping the first version to U.S. four-year institutions only, roughly 300–500 of them, to keep the data pull and testing fast.
 
 ## Possible Deliverable
 
-Some combination of:
+- A Python ingestion script that pulls and caches the relevant College Scorecard fields locally, so the demo doesn't depend on live API calls
+- A ranking module — normalizes each metric, weights it by the student's stated priorities, and classifies each school as reach/target/safety — written as a standalone package, not tied to any particular UI
+- A Streamlit app: a short, plain-language question flow for entering a student's profile, and a results screen showing the ranked list with toggleable columns
+- A short written summary of what the data does and doesn't support, including the international-aid gap above
 
-- A small Python package/scripts that fetch and cache the data
-- A cleaning layer that produces tidy, analysis-ready tables
-- A set of visualizations (matplotlib/plotly), possibly wrapped in a simple notebook or
-  lightweight dashboard
-- A short written summary of what we found
-
-The exact shape of the final artifact is an open question — notebook vs. dashboard vs.
-CLI is something we will decide once the data work is further along.
+We're leaning toward a single Streamlit app for the first working version, since it keeps the data, ranking logic, and UI in one Python codebase — the fastest path to something demoable. Splitting into a separate backend and frontend is a reasonable next step if we take this further, but isn't needed for the first version.
 
 ## Open Questions
 
-- Which specific IPEDS surveys/tables do we actually need?
-- How far back should the time series go? (Data coverage varies by survey.)
-- National view, or focus on a subset — one state, one sector, peer groups?
-- How much do we want to build interactivity vs. producing a strong static analysis?
+- How exactly should a student's ranked list of priorities convert into scoring weights?
+- Should "grad school interest" be a real filter, or just a soft proxy (e.g., favor higher graduate rates)?
+- Should the international-aid gap be handled with a manually curated supplement list, or left as a clearly labeled limitation for v1?
+- How many schools does the demo dataset need for the results to feel credible, without slowing down the data pull?
 
 ## Next Steps
 
-1. Each member spends time in the Education Data Explorer API docs and reports back on
-   what is actually available.
-2. Pull one small sample dataset end to end to sanity-check the workflow.
-3. Narrow to a focused set of questions.
-4. Split the work and update this proposal to v1.
+1. Request a College Scorecard API key and pull a small sample of schools end to end, to confirm the fields we need are actually available and usable.
+2. Build the ranking and classification logic as a standalone, tested module, independent of any UI.
+3. Build the Streamlit intake flow and results screen around that module.
+4. Rehearse the demo with 2–3 realistic student profiles and note where the data or ranking logic needs adjusting.
+5. Update this proposal to v1 once the group has reviewed the narrowed scope.
