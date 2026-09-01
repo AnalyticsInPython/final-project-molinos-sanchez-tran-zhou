@@ -33,22 +33,47 @@ from schools import SCHOOLS, UNITIDS
 BASE = "https://educationdata.urban.org/api/v1/college-university/ipeds"
 DB_PATH = Path(__file__).resolve().parent.parent / "data" / "likeforlike.db"
 
-# 2021 is the anchor: the last year net price exists, so it is the only year
-# where cost and outcomes can be read off the same cross-section.
+# 2021 is the default anchor: the last year net price exists.
 YEAR = 2021
 
-# endpoint -> what an incoming undergraduate is actually asking
+# The seven comparison areas the interface offers, in the order they are shown.
+# Each maps to one or more endpoints. `year` overrides the anchor where an
+# endpoint's coverage ends earlier or later — the areas do NOT share a year, and
+# the interface has to say which year each one is showing.
+AREAS = {
+    "institution_characteristics": "Who and where is this school?",
+    "admissions_and_test_scores": "Can I get in, and with what scores?",
+    "student_charges": "What is the sticker price?",
+    "student_financial_aid": "What will I actually pay, at my income?",
+    "enrollment": "Who goes here?",
+    "retention_and_graduation": "Do students come back, and finish?",
+    "academic_libraries": "What are the library holdings?",
+}
+
+# table name -> (path after /ipeds/, year, area)
+# The path may carry extra segments before the query string; enrollment-headcount
+# takes a level_of_study (1 = undergraduate).
 ENDPOINTS = {
-    "directory": "Who and where is this school?",
-    "admissions-enrollment": "Can I get in? (applications, admits, test scores)",
-    "academic-year-tuition": "What is the sticker price?",
-    "academic-year-room-board-other": "What does living there cost?",
-    "sfa-grants-and-net-price": "What will I actually pay, at my income?",
-    "grad-rates": "Do students finish?",
-    "grad-rates-pell": "Do students on Pell grants finish?",
-    "fall-retention": "Do first-years come back?",
-    "student-faculty-ratio": "How big are classes, roughly?",
-    "completions-cip-2": "What can I study?",
+    "directory": ("directory", YEAR, "institution_characteristics"),
+    "institutional_characteristics": (
+        "institutional-characteristics",
+        YEAR,
+        "institution_characteristics",
+    ),
+    "admissions_enrollment": ("admissions-enrollment", YEAR, "admissions_and_test_scores"),
+    # Test scores stop at 2022; it is the newest year, not the anchor year.
+    "admissions_requirements": ("admissions-requirements", 2022, "admissions_and_test_scores"),
+    "academic_year_tuition": ("academic-year-tuition", YEAR, "student_charges"),
+    "academic_year_room_board_other": ("academic-year-room-board-other", YEAR, "student_charges"),
+    "sfa_grants_and_net_price": ("sfa-grants-and-net-price", YEAR, "student_financial_aid"),
+    "enrollment_headcount": ("enrollment-headcount/{year}/1", YEAR, "enrollment"),
+    "fall_retention": ("fall-retention", YEAR, "retention_and_graduation"),
+    "grad_rates": ("grad-rates", YEAR, "retention_and_graduation"),
+    "grad_rates_pell": ("grad-rates-pell", YEAR, "retention_and_graduation"),
+    "academic_libraries": ("academic-libraries", YEAR, "academic_libraries"),
+    # Not one of the seven areas, but kept: degrees awarded by field.
+    "student_faculty_ratio": ("student-faculty-ratio", YEAR, "institution_characteristics"),
+    "completions_cip_2": ("completions-cip-2", YEAR, None),
 }
 
 
@@ -60,7 +85,8 @@ def fetch(endpoint: str, year: int) -> tuple[list[dict], str]:
     at all — `completions-cip-2` for these 25 schools is 71,010 rows and would
     silently arrive as 4 schools' worth. Always follow `next`.
     """
-    first = f"{BASE}/{endpoint}/{year}/?unitid={','.join(map(str, UNITIDS))}"
+    path = endpoint.format(year=year) if "{year}" in endpoint else f"{endpoint}/{year}"
+    first = f"{BASE}/{path}/?unitid={','.join(map(str, UNITIDS))}"
     rows: list[dict] = []
     url = first
 
@@ -133,7 +159,8 @@ def main() -> None:
     connection.execute(
         """
         CREATE TABLE ingest_runs (
-            endpoint    TEXT NOT NULL,
+            table_name  TEXT NOT NULL,
+            area        TEXT,
             year        INTEGER NOT NULL,
             url         TEXT NOT NULL,
             rows        INTEGER NOT NULL,
@@ -144,27 +171,37 @@ def main() -> None:
         """
     )
 
-    for endpoint, question in ENDPOINTS.items():
-        table = endpoint.replace("-", "_")
+    for table, (path, default_year, area) in ENDPOINTS.items():
+        # --year moves the anchor, but an endpoint pinned to its own year keeps it.
+        year = args.year if default_year == YEAR else default_year
         try:
-            rows, url = fetch(endpoint, args.year)
+            rows, url = fetch(path, year)
         except urllib.error.HTTPError as error:
-            print(f"  {endpoint:<32} HTTP {error.code} — skipped")
+            print(f"  {table:<34} HTTP {error.code} — skipped")
             continue
 
         if not rows:
             # An empty 200 is a failure here, not a success: it means the year
             # has no data and anything downstream would silently see nothing.
-            print(f"  {endpoint:<32} 0 rows — NO DATA for {args.year}")
+            print(f"  {table:<34} 0 rows — NO DATA for {year}")
             continue
 
         create_table(connection, table, rows)
         covered = len({r["unitid"] for r in rows})
         connection.execute(
-            "INSERT INTO ingest_runs VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (endpoint, args.year, url, len(rows), covered, datetime.now(UTC).isoformat(), question),
+            "INSERT INTO ingest_runs VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                table,
+                area,
+                year,
+                url,
+                len(rows),
+                covered,
+                datetime.now(UTC).isoformat(),
+                AREAS.get(area, ""),
+            ),
         )
-        print(f"  {endpoint:<32} {len(rows):>6} rows  {covered:>2}/25 schools")
+        print(f"  {table:<34} {year}  {len(rows):>6} rows  {covered:>2}/25 schools")
 
     connection.commit()
     connection.close()
