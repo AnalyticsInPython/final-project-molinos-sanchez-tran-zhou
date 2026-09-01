@@ -19,3 +19,9 @@ data/cache/
 .DS_Store
 .vscode/
 .idea/
+
+# SQLite (rebuilt by scripts/import_ipeds.py)
+*.db
+*.db-wal
+*.db-shm
+data/
