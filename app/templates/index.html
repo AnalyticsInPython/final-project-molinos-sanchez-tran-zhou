@@ -7,8 +7,32 @@
 {% endblock %}
 
 {% block content %}
-  <h1>Like for Like</h1>
-  <p class="lede">What a school actually costs at your family's income — not its sticker price.</p>
+  <div class="hero">
+    <!-- A line-art motif, not a photo: no specific school, nothing to licence
+         or misattribute. SCOPE.md ruled out campus photography on purpose —
+         this tool's pitch rests on being the un-brochure, and a real photo of
+         a real quad works against that. A drawn silhouette in the site's own
+         stroke style doesn't. -->
+    <svg class="hero-art" viewBox="0 0 400 220" aria-hidden="true">
+      <line x1="30" y1="190" x2="370" y2="190" />
+      <line x1="15" y1="205" x2="385" y2="205" />
+      <polyline points="70,150 70,190" />
+      <polyline points="110,150 110,190" />
+      <polyline points="150,150 150,190" />
+      <polyline points="190,150 190,190" />
+      <polyline points="230,150 230,190" />
+      <polyline points="270,150 270,190" />
+      <polyline points="310,150 310,190" />
+      <line x1="55" y1="150" x2="325" y2="150" />
+      <polyline points="55,150 190,70 325,150" />
+      <line x1="190" y1="70" x2="190" y2="40" />
+      <polyline points="181,40 190,26 199,40" />
+    </svg>
+    <div class="hero-text">
+      <h1>Like for Like</h1>
+      <p class="lede">What a school actually costs at your family's income — not its sticker price.</p>
+    </div>
+  </div>
 
   <form action="/compare" method="get" id="picker">
     <div class="picker-grid">
@@ -42,21 +66,14 @@
           What to compare them on. Financial aid is the one that is built; the rest are on the way.
         </p>
 
-        <div class="dropdown">
-          <button type="button" class="dropdown-toggle" id="area-toggle"
-                  aria-expanded="false" aria-controls="area-menu">
-            <span class="summary-areas" id="area-summary"></span>
-            <span class="caret" aria-hidden="true">&#9662;</span>
-          </button>
-          <div class="menu" id="area-menu" hidden>
-            {% for area in areas %}
-              <label>
-                <input type="checkbox" name="area" value="{{ area.KEY }}" checked>
-                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">{{ area.ICON | safe }}</svg>
-                {{ area.TITLE }}
-              </label>
-            {% endfor %}
-          </div>
+        <div class="options" id="area-options">
+          {% for area in areas %}
+            <label>
+              <input type="checkbox" name="area" value="{{ area.KEY }}" checked>
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">{{ area.ICON | safe }}</svg>
+              {{ area.TITLE }}
+            </label>
+          {% endfor %}
         </div>
       </section>
     </div>
@@ -349,50 +366,16 @@
     }
   });
 
-  /* --- the areas menu ------------------------------------------------ */
+  /* --- the areas list -------------------------------------------------- */
 
-  const areaToggle = document.getElementById("area-toggle");
-  const areaMenu = document.getElementById("area-menu");
-  const areaSummary = document.getElementById("area-summary");
-  const boxes = [...areaMenu.querySelectorAll("input[name=area]")];
+  // Listed plainly rather than tucked behind a dropdown: a handful of
+  // checkboxes is not a list that benefits from being hidden, and a reader
+  // scanning what this tool can compare schools on should see all of them
+  // immediately.
+  const areaOptions = document.getElementById("area-options");
+  const boxes = [...areaOptions.querySelectorAll("input[name=area]")];
 
-  function summarise() {
-    const on = boxes.filter((box) => box.checked);
-    areaSummary.replaceChildren();
-
-    if (!on.length) {
-      areaSummary.textContent = "No areas selected";
-    } else if (on.length === 1) {
-      // One area shows its own icon and name; more than one would not fit, so
-      // it falls back to a count.
-      const label = on[0].closest("label");
-      areaSummary.append(
-        label.querySelector("svg").cloneNode(true),
-        document.createTextNode(label.textContent.trim())
-      );
-    } else {
-      areaSummary.textContent = on.length + " areas selected";
-    }
-  }
-
-  function openAreas(open) {
-    areaMenu.hidden = !open;
-    areaToggle.setAttribute("aria-expanded", String(open));
-  }
-
-  areaToggle.addEventListener("click", () => openAreas(areaMenu.hidden));
-  boxes.forEach((box) =>
-    box.addEventListener("change", () => {
-      summarise();
-      renderYears();
-    })
-  );
-  document.addEventListener("mousedown", (event) => {
-    if (!areaMenu.hidden && !event.target.closest(".dropdown")) openAreas(false);
-  });
-  document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") openAreas(false);
-  });
+  boxes.forEach((box) => box.addEventListener("change", renderYears));
 
   /* --- years ---------------------------------------------------------- */
 
@@ -519,7 +502,6 @@
   });
 
   render();
-  summarise();
   renderYears();
 })();
 </script>
