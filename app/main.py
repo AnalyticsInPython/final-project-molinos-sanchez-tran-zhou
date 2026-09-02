@@ -17,24 +17,11 @@ from fastapi.templating import Jinja2Templates
 
 from app import areas
 from app.db import connect, year_for
+from app.format import money
 from app.schools import all_schools, selected
 
 app = FastAPI(title="Like for Like")
 templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
-
-
-def money(value: int | None) -> str:
-    """Format a dollar figure, with the sign where a reader expects it.
-
-    Registered once here so every area formats money the same way. Negative
-    prices are real in this data — grant aid exceeding cost of attendance —
-    and "$-1,012" reads as a typo where "-$1,012" reads as a number.
-    """
-    if value is None:
-        return "\u2014"
-    return f"-${abs(value):,}" if value < 0 else f"${value:,}"
-
-
 templates.env.filters["money"] = money
 
 # Five is the practical ceiling: past that the tables stop fitting and the

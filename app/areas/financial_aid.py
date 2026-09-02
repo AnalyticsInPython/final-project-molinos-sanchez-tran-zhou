@@ -22,6 +22,7 @@ import sqlite3
 
 import polars as pl
 
+from app.format import money
 from app.schools import School
 
 KEY = "financial_aid"
@@ -38,6 +39,17 @@ BANDS = {
     3: "$48,001–75,000",
     4: "$75,001–110,000",
     5: "$110,001 and up",
+}
+
+# The table has to fit five schools, five bands and the spread on one screen.
+# Full ranges would push the spread — the number the area exists for — off the
+# right edge, so the header is short and the exact ranges go in the note.
+BAND_HEADERS = {
+    1: "Under $30k",
+    2: "$30–48k",
+    3: "$48–75k",
+    4: "$75–110k",
+    5: "$110k and up",
 }
 
 # type_of_aid 9 is grant or scholarship aid from any source, which is the
@@ -57,7 +69,13 @@ def load(conn: sqlite3.Connection, schools: list[School]) -> dict:
     """Net price per band per school, plus the spread between top and bottom."""
     frame = pl.read_database(QUERY, conn)
     if frame.is_empty():
-        return {"rows": [], "bands": BANDS, "chart": None}
+        return {
+            "rows": [],
+            "bands": BANDS,
+            "headers": BAND_HEADERS,
+            "range_chart": None,
+            "chart": None,
+        }
 
     frame = frame.with_columns(
         pl.when(pl.col("net_price").is_in(SENTINELS))
@@ -83,12 +101,91 @@ def load(conn: sqlite3.Connection, schools: list[School]) -> dict:
             }
         )
 
-    return {"rows": rows, "bands": BANDS, "chart": _chart(rows)}
+    return {
+        "rows": rows,
+        "bands": BANDS,
+        "headers": BAND_HEADERS,
+        "range_chart": _range_chart(rows),
+        "chart": _chart(rows),
+    }
+
+
+def _range_chart(rows: list[dict]) -> dict | None:
+    """One row per school: lowest income band to highest, sorted by spread.
+
+    This is the primary chart. The finding is a per-item before/after — what
+    the poorest family pays against what the richest one does — and a range
+    plot is the form that states it directly. Schools are labelled on their
+    own row, so no one has to match a colour to a legend to read it, and the
+    rows sort by spread so the ranking is the shape.
+
+    The five lines we drew first collided in the bottom-left corner, where
+    every school charges roughly nothing, and only separated at the far right.
+    That is the wrong emphasis: the interesting part was unreadable.
+    """
+    pairs = [
+        (row, row["bands"][0], row["bands"][-1])
+        for row in rows
+        if row["bands"][0] is not None and row["bands"][-1] is not None
+    ]
+    if not pairs:
+        return None
+
+    pairs.sort(key=lambda p: p[2] - p[1], reverse=True)
+
+    width, row_h = 640, 34
+    left, right, top = 132, 56, 26
+    bottom = 34
+    height = top + row_h * len(pairs) + bottom
+    plot_w = width - left - right
+
+    low = min(0, min(lo for _, lo, _ in pairs))
+    high = max(hi for _, _, hi in pairs)
+    span = high - low or 1
+
+    def x(value: float) -> float:
+        return left + plot_w * (value - low) / span
+
+    bars = []
+    for i, (row, lo, hi) in enumerate(pairs):
+        y = top + row_h * i + row_h / 2
+        bars.append(
+            {
+                "name": row["school"].short,
+                "y": round(y, 1),
+                "label_y": round(y + 4, 1),
+                "x_low": round(x(lo), 1),
+                "x_high": round(x(hi), 1),
+                "low": lo,
+                "high": hi,
+                "spread": hi - lo,
+                "spread_x": round(x(hi) + 10, 1),
+            }
+        )
+
+    ticks = []
+    for step in range(5):
+        value = low + span * step / 4
+        ticks.append(
+            {"x": round(x(value), 1), "label": money(value), "y_end": height - bottom + 6}
+        )
+
+    return {
+        "width": width,
+        "height": height,
+        "bars": bars,
+        "ticks": ticks,
+        "axis_y": height - bottom + 20,
+        "top": top - 8,
+        "zero_x": round(x(0), 1) if low < 0 else None,
+    }
 
 
 def _chart(rows: list[dict]) -> dict | None:
-    """Points for one line per school across the five bands.
+    """One line per school across the five bands — the secondary view.
 
+    The range chart says how big the gap is; this says where in the income
+    scale it opens up, which is a different question and worth its own frame.
     Laid out here rather than in the template so the template renders numbers
     it is handed instead of computing any of its own.
     """
@@ -121,6 +218,8 @@ def _chart(rows: list[dict]) -> dict | None:
         series.append(
             {
                 "name": row["school"].name,
+                "short": row["school"].short,
+                "spread": row["spread"],
                 "color": row["school"].color,
                 "points": " ".join(f"{px:.1f},{py:.1f}" for px, py in points),
                 "dots": [{"x": round(px, 1), "y": round(py, 1)} for px, py in points],
@@ -133,7 +232,7 @@ def _chart(rows: list[dict]) -> dict | None:
     ticks = []
     for step in range(5):
         value = low + span * step / 4
-        ticks.append({"y": round(y(value), 1), "label": f"${value:,.0f}"})
+        ticks.append({"y": round(y(value), 1), "label": money(value)})
 
     return {
         "width": width,
