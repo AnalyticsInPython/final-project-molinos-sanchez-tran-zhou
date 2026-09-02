@@ -18,6 +18,7 @@
   {% for section in sections %}
     <section class="area">
       <div class="area-head">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">{{ section.area.ICON | safe }}</svg>
         <h2>{{ section.area.TITLE }}</h2>
         {% if section.year %}<span class="year">IPEDS {{ section.year }}</span>{% endif %}
       </div>

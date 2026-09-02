@@ -31,6 +31,15 @@ QUESTION = "What will I actually pay, at my income?"
 TABLE = "sfa_grants_and_net_price"
 TEMPLATE = "areas/financial_aid.html"
 
+# Drawn on a 24x24 grid, stroked in the caller's colour rather than filled, so
+# every area's icon sits at the same weight beside its title. A banknote: this
+# area is about what leaves the family's account.
+ICON = (
+    '<rect x="2" y="6" width="20" height="12" rx="2"/>'
+    '<circle cx="12" cy="12" r="2.5"/>'
+    '<path d="M6 10v4M18 10v4"/>'
+)
+
 # IPEDS income bands for net price. The labels are the family income ranges
 # the bands are defined on, not our shorthand for them.
 BANDS = {

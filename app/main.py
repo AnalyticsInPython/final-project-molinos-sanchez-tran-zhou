@@ -1,9 +1,11 @@
 """The web app: pick schools, pick areas, see the comparison.
 
 Two routes. `/` is the picker, `/compare` renders the chosen areas for the
-chosen schools. Every area renders the same way whether one school is selected
-or five, so adding an area is filling in a template rather than designing a
-screen.
+chosen schools. The picker emits `school` and `color` as index-matched lists,
+so a comparison is fully described by its URL and stays shareable.
+
+Every area renders the same way whether one school is selected or five, so
+adding an area is filling in a template rather than designing a screen.
 
     uv run uvicorn app.main:app --reload
 """
@@ -44,6 +46,7 @@ def compare(
     request: Request,
     school: Annotated[list[int] | None, Query()] = None,
     area: Annotated[list[str] | None, Query()] = None,
+    color: Annotated[list[str] | None, Query()] = None,
 ):
     if not school:
         return RedirectResponse("/")
@@ -51,7 +54,11 @@ def compare(
     keys = [k for k in (area or []) if k in areas.BY_KEY] or [a.KEY for a in areas.ALL]
 
     with connect() as conn:
-        chosen = selected(conn, school[:MAX_SCHOOLS])
+        # `color` is index-matched to `school`, so both are cut at the same
+        # point or the swatches slide onto the wrong schools.
+        chosen = selected(
+            conn, school[:MAX_SCHOOLS], (color or [])[:MAX_SCHOOLS]
+        )
         sections = [
             {
                 "area": areas.BY_KEY[key],

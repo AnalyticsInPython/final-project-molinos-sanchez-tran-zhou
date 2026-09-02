@@ -11,6 +11,7 @@ An area module is expected to define:
     KEY       str   url-safe identifier, matches the module name
     TITLE     str   heading shown on the page
     QUESTION  str   the question this area answers, in a family's words
+    ICON      str   inner markup for a 24x24 <svg>, stroked not filled
     TABLE     str   ingest table the year label is read from
     TEMPLATE  str   path under app/templates/
     load(conn, schools) -> dict    the template's context
