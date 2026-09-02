@@ -59,14 +59,21 @@
           What to compare them on. Financial aid is the one that is built; the rest are on the way.
         </p>
 
-        <div class="options" id="area-options">
-          {% for area in areas %}
-            <label>
-              <input type="checkbox" name="area" value="{{ area.KEY }}" checked>
-              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">{{ area.ICON | safe }}</svg>
-              {{ area.TITLE }}
-            </label>
-          {% endfor %}
+        <div class="dropdown">
+          <button type="button" class="dropdown-toggle" id="area-toggle"
+                  aria-expanded="false" aria-controls="area-menu">
+            <span class="summary-areas" id="area-summary"></span>
+            <span class="caret" aria-hidden="true">&#9662;</span>
+          </button>
+          <div class="menu" id="area-menu" hidden>
+            {% for area in areas %}
+              <label>
+                <input type="checkbox" name="area" value="{{ area.KEY }}" checked>
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">{{ area.ICON | safe }}</svg>
+                {{ area.TITLE }}
+              </label>
+            {% endfor %}
+          </div>
         </div>
       </section>
     </div>
@@ -359,16 +366,50 @@
     }
   });
 
-  /* --- the areas list -------------------------------------------------- */
+  /* --- the areas menu ------------------------------------------------ */
 
-  // Listed plainly rather than tucked behind a dropdown: a handful of
-  // checkboxes is not a list that benefits from being hidden, and a reader
-  // scanning what this tool can compare schools on should see all of them
-  // immediately.
-  const areaOptions = document.getElementById("area-options");
-  const boxes = [...areaOptions.querySelectorAll("input[name=area]")];
+  const areaToggle = document.getElementById("area-toggle");
+  const areaMenu = document.getElementById("area-menu");
+  const areaSummary = document.getElementById("area-summary");
+  const boxes = [...areaMenu.querySelectorAll("input[name=area]")];
 
-  boxes.forEach((box) => box.addEventListener("change", renderYears));
+  function summarise() {
+    const on = boxes.filter((box) => box.checked);
+    areaSummary.replaceChildren();
+
+    if (!on.length) {
+      areaSummary.textContent = "No areas selected";
+    } else if (on.length === 1) {
+      // One area shows its own icon and name; more than one would not fit, so
+      // it falls back to a count.
+      const label = on[0].closest("label");
+      areaSummary.append(
+        label.querySelector("svg").cloneNode(true),
+        document.createTextNode(label.textContent.trim())
+      );
+    } else {
+      areaSummary.textContent = on.length + " areas selected";
+    }
+  }
+
+  function openAreas(open) {
+    areaMenu.hidden = !open;
+    areaToggle.setAttribute("aria-expanded", String(open));
+  }
+
+  areaToggle.addEventListener("click", () => openAreas(areaMenu.hidden));
+  boxes.forEach((box) =>
+    box.addEventListener("change", () => {
+      summarise();
+      renderYears();
+    })
+  );
+  document.addEventListener("mousedown", (event) => {
+    if (!areaMenu.hidden && !event.target.closest(".dropdown")) openAreas(false);
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") openAreas(false);
+  });
 
   /* --- years ---------------------------------------------------------- */
 
@@ -495,6 +536,7 @@
   });
 
   render();
+  summarise();
   renderYears();
 })();
 </script>
