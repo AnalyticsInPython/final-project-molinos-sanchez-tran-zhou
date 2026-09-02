@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+
+{% block nav %}
+  <nav class="topbar">
+    <div class="inner">
+      <a class="brand" href="/">Like for Like</a>
+      <a class="back" href="/">&larr; Back to schools</a>
+    </div>
+  </nav>
+{% endblock %}
+
+{% block content %}
+  {% if not profile %}
+    <h1>Start a profile</h1>
+    <p class="lede">
+      Save your scores, income bracket, and a shortlist of schools so you
+      don't have to re-enter them next time. No password — just a name.
+    </p>
+
+    {% if error %}<p class="hint warn">{{ error }}</p>{% endif %}
+
+    <form action="/profile" method="post" class="panel" style="max-width: 24rem;">
+      <label for="username" class="panel-title">Username</label>
+      <input class="field" id="username" name="username" type="text"
+             placeholder="e.g. jenny" autocomplete="off" required
+             pattern="[a-zA-Z0-9_-]{3,20}" title="3-20 letters, numbers, - or _">
+      <button type="submit" style="margin-top: 1rem;">Start</button>
+    </form>
+  {% else %}
+    <h1>Signed in as {{ profile.username }}</h1>
+    <p class="lede">Your scores and shortlist, saved to this browser.</p>
+
+    <section class="panel" style="margin-bottom: 1.5rem;">
+      <h2 class="panel-title">Scores &amp; income</h2>
+      <form action="/profile/scores" method="post">
+        <div class="picker-grid" style="grid-template-columns: 1fr 1fr 1fr;">
+          <div>
+            <label for="sat" class="hint">SAT (400&ndash;1600)</label>
+            <input class="field" id="sat" name="sat" type="number" min="400" max="1600"
+                   value="{{ profile.sat_score or '' }}">
+          </div>
+          <div>
+            <label for="act" class="hint">ACT (1&ndash;36)</label>
+            <input class="field" id="act" name="act" type="number" min="1" max="36"
+                   value="{{ profile.act_score or '' }}">
+          </div>
+          <div>
+            <label for="income_bracket" class="hint">Family income bracket</label>
+            <select class="field" id="income_bracket" name="income_bracket">
+              <option value="">Not set</option>
+              {% for n in range(1, 6) %}
+                <option value="{{ n }}" {% if profile.income_bracket == n %}selected{% endif %}>
+                  Bracket {{ n }}{% if n == 1 %} (lowest){% elif n == 5 %} (highest){% endif %}
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+        <button type="submit" style="margin-top: 1rem;">Save</button>
+      </form>
+      <p class="note">
+        Brackets match how IPEDS reports net price by income — exact dollar
+        boundaries aren't shown yet (see PROPOSAL.md).
+      </p>
+    </section>
+
+    <section class="panel" style="margin-bottom: 1.5rem;">
+      <h2 class="panel-title">Your shortlist</h2>
+      {% if not shortlist %}
+        <p class="hint">No schools saved yet.</p>
+      {% else %}
+        <ul class="chips">
+          {% for school in shortlist %}
+            <li>
+              <span class="chip" style="background: {{ school.color }};"></span>
+              <span class="name">{{ school.name }}</span>
+              <form action="/profile/schools/{{ school.unitid }}/remove" method="post">
+                <button type="submit" class="drop" aria-label="Remove {{ school.short }}">&times;</button>
+              </form>
+            </li>
+          {% endfor %}
+        </ul>
+        <p class="hint">
+          {{ shortlist | length }} of {{ max_shortlist }} saved.
+          {% if shortlist | length > 1 %}
+            <a href="/compare?{% for s in shortlist[:5] %}school={{ s.unitid }}&color={{ s.color | urlencode }}{% if not loop.last %}&{% endif %}{% endfor %}">
+              Compare your saved schools &rarr;
+            </a>
+          {% endif %}
+        </p>
+      {% endif %}
+
+      {% set shortlist_ids = shortlist | map(attribute="unitid") | list %}
+      {% if shortlist | length < max_shortlist %}
+        <form action="/profile/schools" method="post" class="picker-grid" style="grid-template-columns: 1fr auto; margin-top: 1rem;">
+          <select class="field" name="unitid" required>
+            <option value="" disabled selected>Add a school&hellip;</option>
+            {% for school in all_schools if school.unitid not in shortlist_ids %}
+              <option value="{{ school.unitid }}">{{ school.name }}</option>
+            {% endfor %}
+          </select>
+          <button type="submit">Add</button>
+        </form>
+      {% endif %}
+    </section>
+
+    <form action="/profile/logout" method="post">
+      <button type="submit" style="background: none; color: var(--ink-soft); font-weight: 500;">
+        Sign out
+      </button>
+    </form>
+  {% endif %}
+{% endblock %}

@@ -1,11 +1,17 @@
 """The web app: pick schools, pick areas, see the comparison.
 
-Two routes. `/` is the picker, `/compare` renders the chosen areas for the
-chosen schools. The picker emits `school` and `color` as index-matched lists,
-so a comparison is fully described by its URL and stays shareable.
+`/` is the picker, `/compare` renders the chosen areas for the chosen
+schools. The picker emits `school` and `color` as index-matched lists, so a
+comparison is fully described by its URL and stays shareable — with no
+profile and no cookie required.
 
 Every area renders the same way whether one school is selected or five, so
 adding an area is filling in a template rather than designing a screen.
+
+`/profile` and its POST routes are a second, optional layer on top: a
+username-only profile (see app/profiles.py) that remembers scores, an income
+bracket, and a shortlist, so a returning visitor doesn't retype them. Nothing
+above this line depends on it.
 
     uv run uvicorn app.main:app --reload
 """
@@ -13,11 +19,11 @@ adding an area is filling in a template rather than designing a screen.
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import FastAPI, Query, Request
+from fastapi import FastAPI, Form, Query, Request
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 
-from app import areas
+from app import areas, profiles
 from app.db import connect, latest_year, series_ends
 from app.format import money, number, percent
 from app.notices import for_area
@@ -33,14 +39,33 @@ templates.env.filters["number"] = number
 # chart stops being readable.
 MAX_SCHOOLS = 5
 
+# No password, so no signing library — the cookie is just the username, and
+# that tradeoff was made deliberately (see app/profiles.py).
+PROFILE_COOKIE = "profile"
+PROFILE_COOKIE_MAX_AGE = 180 * 24 * 60 * 60
+
+
+def _current_username(request: Request) -> str | None:
+    return profiles.clean_username(request.cookies.get(PROFILE_COOKIE))
+
 
 @app.get("/")
 def picker(request: Request):
+    username = _current_username(request)
+    profile = None
+    if username:
+        with profiles.connect() as pconn:
+            profile = profiles.get_or_create(pconn, username)
+
     with connect() as conn:
         return templates.TemplateResponse(
             request,
             "index.html",
-            {"schools": all_schools(conn), "areas": areas.ALL},
+            {
+                "schools": all_schools(conn),
+                "areas": areas.ALL,
+                "profile": profile,
+            },
         )
 
 
@@ -93,3 +118,126 @@ def compare(
         "compare.html",
         {"schools": chosen, "sections": sections},
     )
+
+
+# --- Profile: a username, scores, an income bracket, and a shortlist -------
+#
+# Additive, not a gate. Everything above this line works with no cookie at
+# all; a profile only ever makes the picker a little less repetitive for
+# someone who comes back.
+
+
+def _clean_score(value: str | None, *, low: int, high: int) -> int | None:
+    """A form field's score, or None if it's blank or out of range.
+
+    Silently clearing an out-of-range value, rather than rejecting the whole
+    form, matches how a missing IPEDS figure is handled everywhere else in
+    this app: a blank is a real state, not an error to bounce the user over.
+    """
+    if not value or not value.strip():
+        return None
+    try:
+        number_ = int(value)
+    except ValueError:
+        return None
+    return number_ if low <= number_ <= high else None
+
+
+@app.get("/profile")
+def profile_page(request: Request):
+    username = _current_username(request)
+    profile = None
+    shortlist = []
+    error = request.query_params.get("error")
+
+    if username:
+        with profiles.connect() as pconn:
+            profile = profiles.get_or_create(pconn, username)
+        with connect() as conn:
+            shortlist = selected(conn, profile.shortlist)
+
+    with connect() as conn:
+        return templates.TemplateResponse(
+            request,
+            "profile.html",
+            {
+                "profile": profile,
+                "shortlist": shortlist,
+                "all_schools": all_schools(conn),
+                "max_shortlist": profiles.MAX_SHORTLIST,
+                "error": error,
+            },
+        )
+
+
+@app.post("/profile")
+def start_profile(username: Annotated[str, Form()]):
+    clean = profiles.clean_username(username)
+    if not clean:
+        return RedirectResponse(
+            "/profile?error=Usernames+are+3-20+letters%2C+numbers%2C+-+or+_.",
+            status_code=303,
+        )
+
+    with profiles.connect() as pconn:
+        profiles.get_or_create(pconn, clean)
+
+    response = RedirectResponse("/profile", status_code=303)
+    response.set_cookie(
+        PROFILE_COOKIE,
+        clean,
+        max_age=PROFILE_COOKIE_MAX_AGE,
+        httponly=True,
+        samesite="lax",
+    )
+    return response
+
+
+@app.post("/profile/logout")
+def logout():
+    response = RedirectResponse("/", status_code=303)
+    response.delete_cookie(PROFILE_COOKIE)
+    return response
+
+
+@app.post("/profile/scores")
+def update_scores(
+    request: Request,
+    sat: Annotated[str | None, Form()] = None,
+    act: Annotated[str | None, Form()] = None,
+    income_bracket: Annotated[str | None, Form()] = None,
+):
+    username = _current_username(request)
+    if not username:
+        return RedirectResponse("/profile", status_code=303)
+
+    with profiles.connect() as pconn:
+        profiles.set_scores(
+            pconn,
+            username,
+            sat=_clean_score(sat, low=400, high=1600),
+            act=_clean_score(act, low=1, high=36),
+            income_bracket=_clean_score(income_bracket, low=1, high=5),
+        )
+
+    return RedirectResponse("/profile", status_code=303)
+
+
+@app.post("/profile/schools")
+def add_shortlist_school(
+    request: Request, unitid: Annotated[int, Form()]
+):
+    username = _current_username(request)
+    if username:
+        with profiles.connect() as pconn:
+            profiles.add_school(pconn, username, unitid)
+    return RedirectResponse("/profile", status_code=303)
+
+
+@app.post("/profile/schools/{unitid}/remove")
+def remove_shortlist_school(request: Request, unitid: int):
+    username = _current_username(request)
+    if username:
+        with profiles.connect() as pconn:
+            profiles.remove_school(pconn, username, unitid)
+    return RedirectResponse("/profile", status_code=303)
