@@ -1,0 +1,46 @@
+{# Shared by every area in trend mode: one panel per metric, one line per school. #}
+
+{% for panel in context.panels %}
+  {% set c = panel.chart %}
+  <div class="figure">
+    <h3>{{ panel.title }}</h3>
+    <p class="sub">{{ panel.subtitle }}</p>
+    <svg viewBox="0 0 {{ c.width }} {{ c.height }}" role="img"
+         aria-label="{{ panel.title }} for each school, {{ years[0] }} to {{ years[-1] }}">
+      {% for tick in c.y_ticks %}
+        <line x1="{{ c.plot_left }}" y1="{{ tick.y }}" x2="{{ c.plot_right }}" y2="{{ tick.y }}"
+              stroke="#dce1d9" stroke-width="1"></line>
+        <text x="{{ c.plot_left - 8 }}" y="{{ tick.y + 4 }}" text-anchor="end"
+              font-size="11" fill="#7b857e">{{ tick.label }}</text>
+      {% endfor %}
+      {% for tick in c.x_ticks %}
+        <text x="{{ tick.x }}" y="{{ tick.y }}" text-anchor="middle"
+              font-size="11" fill="#7b857e">{{ tick.label }}</text>
+      {% endfor %}
+      {% for line in c.series %}
+        {% for path in line.lines %}
+          <polyline points="{{ path }}" fill="none" stroke="{{ line.color }}"
+                    stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"></polyline>
+        {% endfor %}
+        {% for dot in line.dots %}
+          <circle cx="{{ dot.x }}" cy="{{ dot.y }}" r="3" fill="{{ line.color }}">
+            <title>{{ line.name }} — {{ dot.year }}: {{ dot.label }}</title>
+          </circle>
+        {% endfor %}
+        <text x="{{ line.label_x }}" y="{{ line.label_y }}" font-size="11"
+              fill="{{ line.color }}" font-weight="600">{{ line.name }}</text>
+      {% endfor %}
+    </svg>
+    {% set stops = c.series | map(attribute="ends") | max %}
+    {% if stops < years[-1] %}
+      <p class="keys">
+        <span>No data published after {{ stops }} &mdash; the axis runs to {{ years[-1] }}
+        so this area can be compared with the others on the page.</span>
+      </p>
+    {% endif %}
+  </div>
+{% endfor %}
+
+{% if not context.panels %}
+  <p class="note">No data for these schools between {{ years[0] }} and {{ years[-1] }}.</p>
+{% endif %}

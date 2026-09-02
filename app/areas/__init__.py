@@ -16,6 +16,13 @@ An area module is expected to define:
     TABLE     str   ingest table the year label is read from
     TEMPLATE  str   path under app/templates/
     load(conn, schools, year) -> dict    the template's context
+    trend(conn, schools, years) -> dict   optional: the multi-year view
+    coverage(conn) -> set[(unitid, year)]  optional: what the picker may offer
+
+`coverage` is what the year picker greys out against, so it must answer
+"could this area draw this school in this year?" rather than "does a row
+exist?" — a row of sentinels is not coverage, and offering the year promises a
+chart the area cannot deliver.
 
 `load` takes the year it is rendering and must filter on it. The ingest tables
 hold every year pulled, so a query without a year filter silently mixes a

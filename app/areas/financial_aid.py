@@ -25,6 +25,7 @@ import polars as pl
 from app.format import money
 from app.notices import coverage_notices
 from app.schools import School
+from app.trend import chart as line_chart
 
 KEY = "financial_aid"
 TITLE = "Student financial aid"
@@ -81,6 +82,14 @@ QUERY = """
 
 # Missing and not-applicable. Any other negative is a real price.
 SENTINELS = [-1, -2, -3]
+
+# Every year at once, for the trend view.
+TREND_QUERY = """
+    SELECT year, unitid, income_level, net_price
+    FROM sfa_grants_and_net_price
+    WHERE type_of_aid = 9 AND income_level BETWEEN 1 AND 5
+      AND year BETWEEN {first} AND {last}
+"""
 
 
 def load(conn: sqlite3.Connection, schools: list[School], year: int) -> dict:
@@ -274,3 +283,99 @@ def _chart(rows: list[dict]) -> dict | None:
         ],
         "baseline_y": round(y(0), 1) if low < 0 else None,
     }
+
+
+def trend(conn: sqlite3.Connection, schools: list[School], years: list[int]) -> dict:
+    """The spread over time, and what the poorest families actually pay.
+
+    Two panels, and they answer different questions. The spread says how much
+    a school's price depends on income and whether that dependence is widening.
+    The lowest band says what a family with nothing is asked for, which can
+    improve while the spread grows — a school can get more generous at the
+    bottom and more expensive at the top in the same year.
+
+    The average across all incomes is deliberately not here. It moves with the
+    mix of families who enrolled as much as with any price, and it is the exact
+    number this project exists to argue against.
+    """
+    frame = pl.read_database(
+        TREND_QUERY.format(first=int(min(years)), last=int(max(years))), conn
+    )
+    if frame.is_empty():
+        return {
+            "panels": [],
+            "notices": coverage_notices(list(schools), [], subject=SUBJECT, series=True),
+        }
+
+    frame = frame.with_columns(
+        pl.when(pl.col("net_price").is_in(SENTINELS))
+        .then(None)
+        .otherwise(pl.col("net_price"))
+        .alias("net_price")
+    ).filter(pl.col("unitid").is_in([s.unitid for s in schools]))
+
+    lowest, spread = {}, {}
+    reported, seen = set(), set()
+    for record in frame.to_dicts():
+        key = (record["unitid"], record["year"])
+        reported.add(record["unitid"])
+        if record["income_level"] == 1:
+            lowest[key] = record["net_price"]
+        if record["income_level"] in (1, 5) and record["net_price"] is not None:
+            seen.add(key)
+
+    wide = frame.pivot(on="income_level", index=["unitid", "year"], values="net_price")
+    for record in wide.to_dicts():
+        top, bottom = record.get("5"), record.get("1")
+        if top is not None and bottom is not None:
+            spread[(record["unitid"], record["year"])] = top - bottom
+
+    panels = [
+        {
+            "title": "How far price depends on income",
+            "subtitle": (
+                "Highest income band minus lowest. A widening gap means income "
+                "matters more."
+            ),
+            "chart": line_chart(schools, years, spread, fmt=money),
+        },
+        {
+            "title": "What the lowest income band pays",
+            "subtitle": (
+                "Net price for families under $30,000. Below zero means aid "
+                "exceeded the cost of attendance."
+            ),
+            "chart": line_chart(schools, years, lowest, fmt=money),
+        },
+    ]
+
+    missing_all = [s for s in schools if s.unitid not in reported]
+    missing_some = [
+        s
+        for s in schools
+        if s.unitid in reported and any((s.unitid, y) not in seen for y in years)
+    ]
+
+    return {
+        "panels": [p for p in panels if p["chart"]],
+        "notices": coverage_notices(
+            missing_all, missing_some, subject=SUBJECT, series=True
+        ),
+    }
+
+
+# Coverage is the pair the spread needs, not merely the presence of a row.
+# A school reporting three middle bands and neither end cannot be drawn, and
+# offering that year in the picker would promise a chart we cannot deliver.
+COVERAGE_QUERY = """
+    SELECT unitid, year
+    FROM sfa_grants_and_net_price
+    WHERE type_of_aid = 9 AND income_level IN (1, 5) AND net_price NOT IN (-1, -2, -3)
+    GROUP BY unitid, year
+    HAVING COUNT(DISTINCT income_level) = 2
+"""
+
+
+def coverage(conn: sqlite3.Connection) -> set[tuple[int, int]]:
+    """Every (unitid, year) this area can render, for the year picker."""
+    return {(row[0], row[1]) for row in conn.execute(COVERAGE_QUERY)}

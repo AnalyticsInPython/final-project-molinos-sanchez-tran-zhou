@@ -13,14 +13,18 @@
   <h1>
     {% for school in schools %}{{ school.short }}{% if not loop.last %} &middot; {% endif %}{% endfor %}
   </h1>
-  <p class="lede">Compared on {{ sections | length }} area{{ "s" if sections | length != 1 }}.</p>
+  <p class="lede">
+    Compared on {{ sections | length }} area{{ "s" if sections | length != 1 }}{% if years %},
+    {{ years[0] }} to {{ years[-1] }}{% endif %}.
+  </p>
 
   {% for section in sections %}
     <section class="area">
       <div class="area-head">
         <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">{{ section.area.ICON | safe }}</svg>
         <h2>{{ section.area.TITLE }}</h2>
-        {% if section.year %}<span class="year">IPEDS {{ section.year }}</span>{% endif %}
+        {% if section.mode == "trend" %}<span class="year">IPEDS {{ years[0] }}&ndash;{{ years[-1] }}</span>
+        {% elif section.year %}<span class="year">IPEDS {{ section.year }}</span>{% endif %}
       </div>
       <p class="question">{{ section.area.QUESTION }}</p>
       {% if section.notices %}
@@ -35,7 +39,13 @@
           {% endfor %}
         </ul>
       {% endif %}
-      {% with context = section.context %}{% include section.area.TEMPLATE %}{% endwith %}
+      {% with context = section.context %}
+        {% if section.mode == "trend" %}
+          {% include "trend.html" %}
+        {% else %}
+          {% include section.area.TEMPLATE %}
+        {% endif %}
+      {% endwith %}
     </section>
   {% endfor %}
 {% endblock %}
