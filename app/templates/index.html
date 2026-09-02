@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block content %}
+  <h1>Like for Like</h1>
+  <p class="lede">What a school actually costs at your family's income — not its sticker price.</p>
+
+  <form action="/compare" method="get">
+    <fieldset>
+      <legend>Schools &mdash; pick up to five</legend>
+      <div class="options">
+        {% for school in schools %}
+          <label>
+            <input type="checkbox" name="school" value="{{ school.unitid }}">
+            <span class="chip" style="background: {{ school.color }}"></span>
+            {{ school.name }}
+          </label>
+        {% endfor %}
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Areas</legend>
+      <div class="options">
+        {% for area in areas %}
+          <label>
+            <input type="checkbox" name="area" value="{{ area.KEY }}" checked>
+            {{ area.TITLE }}
+          </label>
+        {% endfor %}
+      </div>
+    </fieldset>
+
+    <button type="submit">Compare</button>
+  </form>
+{% endblock %}

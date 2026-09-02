@@ -1,0 +1,76 @@
+{# Net price by family income band, plus the spread we compute from it. #}
+
+{% if context.chart %}
+  {% set chart = context.chart %}
+  <svg viewBox="0 0 {{ chart.width }} {{ chart.height }}" role="img"
+       aria-label="Net price across the five family income bands, one line per school">
+    {% for tick in chart.ticks %}
+      <line x1="60" y1="{{ tick.y }}" x2="{{ chart.width - 96 }}" y2="{{ tick.y }}"
+            stroke="#dce1d9" stroke-width="1"></line>
+      <text x="52" y="{{ tick.y + 4 }}" text-anchor="end"
+            font-size="11" fill="#7b857e">{{ tick.label }}</text>
+    {% endfor %}
+    {% if chart.baseline_y %}
+      <line x1="60" y1="{{ chart.baseline_y }}" x2="{{ chart.width - 96 }}" y2="{{ chart.baseline_y }}"
+            stroke="#7b857e" stroke-width="1" stroke-dasharray="3 3"></line>
+    {% endif %}
+    {% for label in chart.band_labels %}
+      {% if label.label %}
+        <text x="{{ label.x }}" y="{{ label.y }}" text-anchor="middle"
+              font-size="11" fill="#7b857e">{{ label.label }}</text>
+      {% endif %}
+    {% endfor %}
+    {% for line in chart.series %}
+      <polyline points="{{ line.points }}" fill="none"
+                stroke="{{ line.color }}" stroke-width="2"></polyline>
+      {% for dot in line.dots %}
+        <circle cx="{{ dot.x }}" cy="{{ dot.y }}" r="3" fill="{{ line.color }}"></circle>
+      {% endfor %}
+      <text x="{{ line.label_x }}" y="{{ line.label_y }}"
+            font-size="11" fill="{{ line.color }}">{{ line.end_value | money }}</text>
+    {% endfor %}
+  </svg>
+  <p class="note">
+    Net price by family income, lowest band to highest. A line that climbs steeply
+    charges by income; a flat line charges everyone much the same.
+  </p>
+{% endif %}
+
+<div class="scroll">
+  <table>
+    <thead>
+      <tr>
+        <th>School</th>
+        {% for label in context.bands.values() %}<th>{{ label }}</th>{% endfor %}
+        <th>Spread</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in context.rows %}
+        <tr>
+          <td>
+            <span class="chip" style="background: {{ row.school.color }}"></span>
+            {{ row.school.name }}
+          </td>
+          {% for value in row.bands %}
+            <td>
+              {% if value is none %}<span class="missing" title="Not reported">&mdash;</span>
+              {% else %}{{ value | money }}{% endif %}
+            </td>
+          {% endfor %}
+          <td class="metric">
+            {% if row.spread is none %}<span class="missing">&mdash;</span>
+            {% else %}{{ row.spread | money }}{% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<p class="note">
+  <strong>Spread</strong> is the highest band minus the lowest &mdash; how much what you
+  pay depends on what your family earns. We compute it; IPEDS does not publish it.
+  A negative net price is real, not missing: grant aid can exceed the total cost of
+  attendance.
+</p>
