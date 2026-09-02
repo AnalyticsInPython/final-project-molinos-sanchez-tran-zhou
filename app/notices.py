@@ -116,33 +116,47 @@ def age_notice(
     )
 
 
-def coverage_notices(missing_all, missing_some, *, subject: str) -> list[Notice]:
+def coverage_notices(missing_all, missing_some, *, subject: str, series: bool = False):
     """Which of the chosen schools do not report this, said by name.
 
     Named rather than counted: a student who picked four schools needs to know
     it is *their* school that is blank, and a count does not tell them that.
+
+    `series` switches the wording for the trend view, where the gap is a break
+    in a line rather than an empty cell. Same fact, and telling a reader to
+    look for a blank cell on a page that has no table is how a caveat gets
+    skipped.
     """
     notices = []
 
     if missing_all:
         many = len(missing_all) > 1
+        where = "in these years" if series else "below"
         notices.append(
             Notice(
                 "warn",
                 f"{_names(missing_all)} report{'' if many else 's'} no {subject} data "
-                f"at all, so {'they are' if many else 'it is'} blank below and absent "
-                f"from the charts. That is a gap in the federal data, not a zero.",
+                f"at all, so {'they are' if many else 'it is'} absent {where} and from "
+                f"the charts. That is a gap in the federal data, not a zero.",
             )
         )
 
     if missing_some:
         many = len(missing_some) > 1
+        detail = (
+            "Their lines break where the data does, rather than joining across it."
+            if many
+            else "Its line breaks where the data does, rather than joining across it."
+        )
         notices.append(
             Notice(
                 "info",
-                f"{_names(missing_some)} report{'' if many else 's'} only part of this "
-                f"data. Blank cells are values the school did not report — they are "
-                f"not zeros.",
+                f"{_names(missing_some)} {'are' if many else 'is'} missing some years "
+                f"in this range. {detail}"
+                if series
+                else f"{_names(missing_some)} report{'' if many else 's'} only part of "
+                f"this data. Blank cells are values the school did not report — they "
+                f"are not zeros.",
             )
         )
 

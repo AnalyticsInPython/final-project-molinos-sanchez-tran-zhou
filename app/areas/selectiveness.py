@@ -26,8 +26,10 @@ import sqlite3
 
 import polars as pl
 
+from app.format import number, percent
 from app.notices import coverage_notices
 from app.schools import School
+from app.trend import chart as line_chart
 
 KEY = "selectiveness"
 TITLE = "Selectiveness"
@@ -57,6 +59,15 @@ QUERY = """
 """
 
 COUNTS = ["number_applied", "number_admitted", "number_enrolled_total"]
+
+# Every year at once, for the trend view. Same filters as QUERY — pinning
+# sex = 99 matters more here, not less, since the window spans the years IPEDS
+# changed the categories.
+TREND_QUERY = """
+    SELECT year, unitid, number_applied, number_admitted, number_enrolled_total
+    FROM admissions_enrollment
+    WHERE sex = 99 AND year BETWEEN {first} AND {last}
+"""
 
 # Missing and not-applicable. Unlike net price, no count here is meaningfully
 # negative — you cannot receive minus one application.
@@ -123,7 +134,9 @@ def load(conn: sqlite3.Connection, schools: list[School], year: int) -> dict:
         "rows": rows,
         "rates_chart": _rates_chart(rows),
         "volume_chart": _volume_chart(rows),
-        "notices": coverage_notices(missing_all, missing_some, subject=SUBJECT),
+        "notices": coverage_notices(
+            missing_all, missing_some, subject=SUBJECT, series=True
+        ),
     }
 
 
@@ -246,4 +259,83 @@ def _volume_chart(rows: list[dict]) -> dict | None:
         "bars": bars,
         "label_x": label_w - 10,
         "plot_x": label_w,
+    }
+
+
+def trend(conn: sqlite3.Connection, schools: list[School], years: list[int]) -> dict:
+    """Both rates and raw demand, each across the requested window.
+
+    Three panels rather than three lines on one chart: a rate between 2% and
+    20% and an application count in the tens of thousands share no axis, and
+    forcing them onto one would flatten whichever lost.
+    """
+    frame = pl.read_database(
+        TREND_QUERY.format(first=int(min(years)), last=int(max(years))), conn
+    )
+    if frame.is_empty():
+        return {
+            "panels": [],
+            "notices": coverage_notices(list(schools), [], subject=SUBJECT, series=True),
+        }
+
+    frame = frame.with_columns(
+        [
+            pl.when(pl.col(column).is_in(SENTINELS))
+            .then(None)
+            .otherwise(pl.col(column))
+            .alias(column)
+            for column in COUNTS
+        ]
+    ).filter(pl.col("unitid").is_in([s.unitid for s in schools]))
+
+    frame = frame.with_columns(
+        [
+            pl.when(pl.col("number_applied") > 0)
+            .then(pl.col("number_admitted") / pl.col("number_applied"))
+            .otherwise(None)
+            .alias("admit_rate"),
+            pl.when(pl.col("number_admitted") > 0)
+            .then(pl.col("number_enrolled_total") / pl.col("number_admitted"))
+            .otherwise(None)
+            .alias("yield_rate"),
+        ]
+    )
+
+    records = frame.to_dicts()
+    seen = {(r["unitid"], r["year"]) for r in records}
+    reported = {r["unitid"] for r in records}
+
+    def values(field):
+        return {(r["unitid"], r["year"]): r[field] for r in records}
+
+    panels = [
+        {
+            "title": "Admit rate",
+            "subtitle": "Share of applicants offered a place. Falling almost everywhere.",
+            "chart": line_chart(schools, years, values("admit_rate"), fmt=percent),
+        },
+        {
+            "title": "Yield",
+            "subtitle": "Share of admitted students who enrolled — how badly people want in.",
+            "chart": line_chart(schools, years, values("yield_rate"), fmt=percent),
+        },
+        {
+            "title": "Applications",
+            "subtitle": "Raw demand, not adjusted for size.",
+            "chart": line_chart(schools, years, values("number_applied"), fmt=number),
+        },
+    ]
+
+    missing_all = [s for s in schools if s.unitid not in reported]
+    missing_some = [
+        s
+        for s in schools
+        if s.unitid in reported and any((s.unitid, y) not in seen for y in years)
+    ]
+
+    return {
+        "panels": [p for p in panels if p["chart"]],
+        "notices": coverage_notices(
+            missing_all, missing_some, subject=SUBJECT, series=True
+        ),
     }

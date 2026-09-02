@@ -19,8 +19,12 @@ def percent(value: float | None, places: int = 1) -> str:
     return f"{value * 100:.{places}f}%"
 
 
-def number(value: int | None) -> str:
+def number(value: int | float | None) -> str:
     """A whole count, grouped so five digits stay readable.
+
+    Rounds rather than assuming an integer: chart axis ticks are interpolated
+    between the extremes, so they arrive as floats, and formatting one
+    unrounded put "105,654.32" applications on an axis.
 
     Not registered as `count`: Jinja already defines that as an alias for
     `length`, and shadowing it would silently break `{{ things | count }}`
@@ -28,7 +32,7 @@ def number(value: int | None) -> str:
     """
     if value is None:
         return "—"
-    return f"{value:,}"
+    return f"{round(value):,}"
 
 
 def money(value: int | float | None) -> str:

@@ -50,6 +50,14 @@ app/areas/                one module per comparison area
 app/notices.py            what to tell the reader the figures do not cover
 ```
 
+## Two views
+
+Without a year range the page is a **snapshot** of the newest year each area has.
+Ask for a range and every area switches to a **trend**: one line per school per metric,
+drawn against a single window shared by every area on the page. The shared axis is the
+point — it is what shows a reader that admissions reaches 2024 while net price stopped
+in 2021, since both are drawn against the same years and one of them visibly stops early.
+
 ## Running the app
 
 ```sh

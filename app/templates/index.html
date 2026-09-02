@@ -61,6 +61,22 @@
       </section>
     </div>
 
+    <section class="panel years-panel">
+      <h2 class="panel-title">Years</h2>
+      <p class="panel-hint">
+        Optional. One year gives a snapshot; a range shows how each figure has moved,
+        which is often the more useful answer.
+      </p>
+      <label class="years-row">
+        <select class="field" name="years" id="years">
+          {% for value, label in spans.items() %}
+            <option value="{{ value }}">{{ label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <p class="hint" id="years-hint"></p>
+    </section>
+
     <button type="submit" id="submit">Compare</button>
   </form>
 
@@ -357,8 +373,20 @@
     if (event.key === "Escape") openAreas(false);
   });
 
+  const yearSelect = document.getElementById("years");
+  const yearHint = document.getElementById("years-hint");
+
+  function describeYears() {
+    yearHint.textContent = yearSelect.value
+      ? "Each area will show a line per school over time."
+      : "Each area will show its most recent year.";
+  }
+
+  yearSelect.addEventListener("change", describeYears);
+
   render();
   summarise();
+  describeYears();
 })();
 </script>
 {% endblock %}
