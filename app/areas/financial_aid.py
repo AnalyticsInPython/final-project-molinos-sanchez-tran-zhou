@@ -362,3 +362,20 @@ def trend(conn: sqlite3.Connection, schools: list[School], years: list[int]) -> 
             missing_all, missing_some, subject=SUBJECT, series=True
         ),
     }
+
+
+# Coverage is the pair the spread needs, not merely the presence of a row.
+# A school reporting three middle bands and neither end cannot be drawn, and
+# offering that year in the picker would promise a chart we cannot deliver.
+COVERAGE_QUERY = """
+    SELECT unitid, year
+    FROM sfa_grants_and_net_price
+    WHERE type_of_aid = 9 AND income_level IN (1, 5) AND net_price NOT IN (-1, -2, -3)
+    GROUP BY unitid, year
+    HAVING COUNT(DISTINCT income_level) = 2
+"""
+
+
+def coverage(conn: sqlite3.Connection) -> set[tuple[int, int]]:
+    """Every (unitid, year) this area can render, for the year picker."""
+    return {(row[0], row[1]) for row in conn.execute(COVERAGE_QUERY)}

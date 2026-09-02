@@ -339,3 +339,18 @@ def trend(conn: sqlite3.Connection, schools: list[School], years: list[int]) -> 
             missing_all, missing_some, subject=SUBJECT, series=True
         ),
     }
+
+
+# A school-year counts as covered only if the area could actually draw it: a
+# row exists, and the denominators the two rates divide by are present. A row
+# of sentinels is not coverage.
+COVERAGE_QUERY = """
+    SELECT DISTINCT unitid, year
+    FROM admissions_enrollment
+    WHERE sex = 99 AND number_applied > 0 AND number_admitted > 0
+"""
+
+
+def coverage(conn: sqlite3.Connection) -> set[tuple[int, int]]:
+    """Every (unitid, year) this area can render, for the year picker."""
+    return {(row[0], row[1]) for row in conn.execute(COVERAGE_QUERY)}

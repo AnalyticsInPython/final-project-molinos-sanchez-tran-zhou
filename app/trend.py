@@ -49,7 +49,7 @@ def chart(
         for year in years
         if values.get((school.unitid, year)) is not None
     ]
-    if not points or len(years) < 2:
+    if not points or len(years) < 2 or years[-1] == years[0]:
         return None
 
     width, height = 640, 268
@@ -74,8 +74,15 @@ def chart(
             low = max(low, 0)
     span = high - low
 
+    # Positioned by the year's value, not its index. If someone picks 2015 and
+    # 2024 and nothing between, those two points sit ten years apart rather
+    # than side by side, and the slope between them stays honest.
+    # Named for the axis, not shortened: `last` is rebound inside the series
+    # loop below, and sharing the name silently fed a tuple to this closure.
+    first_year, last_year = years[0], years[-1]
+
     def x(year: int) -> float:
-        return left + plot_w * years.index(year) / (len(years) - 1)
+        return left + plot_w * (year - first_year) / (last_year - first_year)
 
     def y(value: float) -> float:
         return top + plot_h * (1 - (value - low) / span)
@@ -133,7 +140,7 @@ def chart(
     # Label every year when there is room, otherwise every other one, always
     # keeping the last so the reader can see where the window closes.
     step = 1 if len(years) <= 6 else 2
-    shown = [yr for i, yr in enumerate(years) if i % step == 0 or yr == years[-1]]
+    shown = [yr for i, yr in enumerate(years) if i % step == 0 or yr == last_year]
 
     return {
         "width": width,

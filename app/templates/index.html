@@ -64,21 +64,35 @@
     <section class="panel years-panel">
       <h2 class="panel-title">Years</h2>
       <p class="panel-hint">
-        Optional. One year gives a snapshot; a range shows how each figure has moved,
-        which is often the more useful answer.
+        Optional. One year gives a snapshot; two or more show how each figure has moved.
+        The buttons pick whatever is actually available.
       </p>
-      <label class="years-row">
-        <select class="field" name="years" id="years">
-          {% for value, label in spans.items() %}
-            <option value="{{ value }}">{{ label }}</option>
-          {% endfor %}
-        </select>
-      </label>
+
+      <div class="spans" role="group" aria-label="Quick year ranges">
+        {% for value, label in spans %}
+          <button type="button" class="span" data-span="{{ value }}">{{ label }}</button>
+        {% endfor %}
+        <button type="button" class="span clear" data-span="none">Clear</button>
+      </div>
+
+      <ul class="years" id="years"></ul>
       <p class="hint" id="years-hint"></p>
+      <p class="keys years-key">
+        <span><span class="dot ok"></span> All selected schools</span>
+        <span><span class="dot part"></span> Some are missing it</span>
+        <span><span class="dot none"></span> None have it</span>
+      </p>
+      <div id="year-fields"></div>
     </section>
 
     <button type="submit" id="submit">Compare</button>
   </form>
+
+  <script type="application/json" id="coverage-data">
+    {"years": {{ all_years | tojson }},
+     "areas": { {% for key, pairs in coverage.items() %}{{ key | tojson }}: {{ pairs | tojson }}{{ "," if not loop.last }}{% endfor %} },
+     "titles": { {% for a in areas %}{{ a.KEY | tojson }}: {{ a.TITLE | tojson }}{{ "," if not loop.last }}{% endfor %} }}
+  </script>
 
   <script type="application/json" id="school-data">
     [{% for s in schools %}{"unitid": {{ s.unitid }}, "name": {{ s.name | tojson }}, "short": {{ s.short | tojson }}, "color": {{ s.color | tojson }}}{{ "," if not loop.last }}{% endfor %}]
@@ -252,6 +266,8 @@
       colorFields.push(colorField);
     });
 
+    if (typeof renderYears === "function") renderYears();
+
     const full = chosen.length >= MAX;
     search.disabled = full;
     search.placeholder = full ? "Five is the maximum" : "Search for a school…";
@@ -365,7 +381,12 @@
   }
 
   areaToggle.addEventListener("click", () => openAreas(areaMenu.hidden));
-  boxes.forEach((box) => box.addEventListener("change", summarise));
+  boxes.forEach((box) =>
+    box.addEventListener("change", () => {
+      summarise();
+      renderYears();
+    })
+  );
   document.addEventListener("mousedown", (event) => {
     if (!areaMenu.hidden && !event.target.closest(".dropdown")) openAreas(false);
   });
@@ -373,20 +394,133 @@
     if (event.key === "Escape") openAreas(false);
   });
 
-  const yearSelect = document.getElementById("years");
+  /* --- years ---------------------------------------------------------- */
+
+  const COVERAGE = JSON.parse(document.getElementById("coverage-data").textContent);
+  const yearList = document.getElementById("years");
+  const yearFields = document.getElementById("year-fields");
   const yearHint = document.getElementById("years-hint");
 
-  function describeYears() {
-    yearHint.textContent = yearSelect.value
-      ? "Each area will show a line per school over time."
-      : "Each area will show its most recent year.";
+  // Coverage arrives as [unitid, year] pairs per area. A Set of "unitid:year"
+  // makes the per-year lookup below a constant-time check rather than a scan
+  // over every pair for every year for every school.
+  const covered = {};
+  for (const [key, pairs] of Object.entries(COVERAGE.areas)) {
+    covered[key] = new Set(pairs.map(([unitid, year]) => unitid + ":" + year));
   }
 
-  yearSelect.addEventListener("change", describeYears);
+  const picked = new Set();
+
+  function activeAreas() {
+    // No area ticked means every area, matching what the route does.
+    const on = boxes.filter((box) => box.checked).map((box) => box.value);
+    return (on.length ? on : boxes.map((box) => box.value)).filter((key) => covered[key]);
+  }
+
+  // Which of the chosen schools cannot be drawn in a given year, and in which
+  // area. Named per school rather than counted, because "one school is
+  // missing" does not tell a reader whether it is theirs.
+  function absences(year) {
+    const gaps = [];
+    for (const school of chosen) {
+      for (const key of activeAreas()) {
+        if (!covered[key].has(school.unitid + ":" + year)) {
+          gaps.push({ school: school.short, area: COVERAGE.titles[key] });
+        }
+      }
+    }
+    return gaps;
+  }
+
+  function stateFor(year) {
+    if (!chosen.length) return { level: "ok", why: "" };
+    const gaps = absences(year);
+    const slots = chosen.length * activeAreas().length;
+    if (!gaps.length) return { level: "ok", why: "Every selected school has " + year + " data." };
+
+    const why = gaps
+      .map((gap) => gap.school + " has no " + gap.area.toLowerCase() + " data for " + year)
+      .join(". ");
+    return { level: gaps.length >= slots ? "none" : "part", why: why + "." };
+  }
+
+  // A year nobody can be drawn in is the one case where selecting it would
+  // produce an empty chart, so it is the only one that is disabled outright.
+  // A partial year still renders — the trend view breaks the line where the
+  // data stops rather than inventing a value — so it is coloured, not blocked.
+  function renderYears() {
+    yearList.replaceChildren();
+    yearFields.replaceChildren();
+
+    COVERAGE.years.forEach((year) => {
+      const state = stateFor(year);
+      const item = document.createElement("li");
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "year " + state.level;
+      button.textContent = year;
+      button.title = state.why;
+      button.setAttribute("aria-pressed", String(picked.has(year)));
+      if (state.level === "none") {
+        button.disabled = true;
+        picked.delete(year);
+      }
+      button.addEventListener("click", () => {
+        picked.has(year) ? picked.delete(year) : picked.add(year);
+        renderYears();
+      });
+      if (picked.has(year)) button.classList.add("on");
+      item.append(button);
+      yearList.append(item);
+
+      if (picked.has(year)) yearFields.append(hidden("year", year));
+    });
+
+    const count = picked.size;
+    yearHint.textContent = !count
+      ? "No years chosen — each area shows its own most recent."
+      : count === 1
+        ? "One year: a snapshot. Areas without it fall back to their newest."
+        : count + " years: each area shows a line per school over time.";
+  }
+
+  // The buttons resolve against what exists rather than against the calendar.
+  // "Last 5 years" on a school missing one of them selects the four it has,
+  // and a school with nothing in range is simply left out of the charts.
+  function selectable() {
+    return COVERAGE.years.filter((year) => stateFor(year).level !== "none");
+  }
+
+  document.querySelectorAll(".span").forEach((button) => {
+    button.addEventListener("click", () => {
+      const span = button.dataset.span;
+      const open = selectable();
+      picked.clear();
+      if (span === "recent") {
+        // Every school's newest year, which is one year when they agree and
+        // two when one school lags — "compare 2023 to 2024" rather than
+        // silently dropping the school that has not reported yet.
+        const newest = chosen.length
+          ? chosen.map((school) =>
+              Math.max(
+                ...open.filter((year) =>
+                  activeAreas().some((key) => covered[key].has(school.unitid + ":" + year))
+                )
+              )
+            )
+          : [Math.max(...open)];
+        newest.filter(Number.isFinite).forEach((year) => picked.add(year));
+      } else if (span !== "none") {
+        const take = span === "all" ? open.length : Number(span);
+        open.slice(-take).forEach((year) => picked.add(year));
+      }
+      renderYears();
+    });
+  });
 
   render();
   summarise();
-  describeYears();
+  renderYears();
 })();
 </script>
 {% endblock %}

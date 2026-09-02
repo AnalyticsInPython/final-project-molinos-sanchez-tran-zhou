@@ -14,7 +14,7 @@
     {% for school in schools %}{{ school.short }}{% if not loop.last %} &middot; {% endif %}{% endfor %}
   </h1>
   <p class="lede">
-    Compared on {{ sections | length }} area{{ "s" if sections | length != 1 }}{% if span %},
+    Compared on {{ sections | length }} area{{ "s" if sections | length != 1 }}{% if years %},
     {{ years[0] }} to {{ years[-1] }}{% endif %}.
   </p>
 
