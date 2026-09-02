@@ -23,6 +23,18 @@
         {% if section.year %}<span class="year">IPEDS {{ section.year }}</span>{% endif %}
       </div>
       <p class="question">{{ section.area.QUESTION }}</p>
+      {% if section.notices %}
+        <ul class="notices">
+          {% for notice in section.notices %}
+            <li class="notice {{ notice.level }}">
+              <span class="notice-mark" aria-hidden="true">
+                {%- if notice.level == "warn" %}&#9888;{% else %}&#9432;{% endif -%}
+              </span>
+              <span>{{ notice.text }}</span>
+            </li>
+          {% endfor %}
+        </ul>
+      {% endif %}
       {% with context = section.context %}{% include section.area.TEMPLATE %}{% endwith %}
     </section>
   {% endfor %}

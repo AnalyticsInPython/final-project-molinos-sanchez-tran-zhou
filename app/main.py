@@ -20,6 +20,7 @@ from fastapi.templating import Jinja2Templates
 from app import areas
 from app.db import connect, year_for
 from app.format import money
+from app.notices import for_area
 from app.schools import all_schools, selected
 
 app = FastAPI(title="Like for Like")
@@ -59,14 +60,28 @@ def compare(
         chosen = selected(
             conn, school[:MAX_SCHOOLS], (color or [])[:MAX_SCHOOLS]
         )
-        sections = [
-            {
-                "area": areas.BY_KEY[key],
-                "year": year_for(conn, areas.BY_KEY[key].TABLE),
-                "context": areas.BY_KEY[key].load(conn, chosen),
-            }
-            for key in keys
-        ]
+        sections = []
+        for key in keys:
+            # Not `area`: that is the query parameter, and shadowing it here
+            # would read as a bug even though `keys` is already resolved.
+            module = areas.BY_KEY[key]
+            year = year_for(conn, module.TABLE)
+            context = module.load(conn, chosen)
+            sections.append(
+                {
+                    "area": module,
+                    "year": year,
+                    "context": context,
+                    # Coverage comes from the area, which is the only thing
+                    # that knows which schools came back empty; freshness is
+                    # added here, which is where the year is known.
+                    "notices": for_area(
+                        year,
+                        context.get("notices", []),
+                        subject=getattr(module, "SUBJECT", module.TITLE.lower()),
+                    ),
+                }
+            )
 
     return templates.TemplateResponse(
         request,

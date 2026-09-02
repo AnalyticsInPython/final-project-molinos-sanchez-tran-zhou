@@ -42,6 +42,13 @@
     .area-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: .75rem; margin-bottom: .25rem; }
     .year { font-size: .8rem; color: var(--ink-faint); }
     .question { color: var(--ink-soft); margin: 0 0 1.25rem; }
+    /* Data-quality notices. Stated above the charts, because a caveat read
+       after the conclusion has already been drawn is not a caveat. */
+    .notices { list-style: none; margin: 0 0 1.25rem; padding: 0; display: flex; flex-direction: column; gap: .5rem; }
+    .notice { display: flex; gap: .55rem; align-items: baseline; font-size: .88rem; line-height: 1.5; padding: .6rem .75rem; border-radius: 4px; border: 1px solid; }
+    .notice-mark { flex: none; font-size: .95rem; line-height: 1.3; }
+    .notice.warn { color: #6f4a05; background: #fdf6e6; border-color: #e6cf9a; }
+    .notice.info { color: #33474f; background: #eef4f6; border-color: #c8d9de; }
     .scroll { overflow-x: auto; }
     table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
     th, td { text-align: right; padding: .5rem .6rem; border-bottom: 1px solid var(--rule); white-space: nowrap; }

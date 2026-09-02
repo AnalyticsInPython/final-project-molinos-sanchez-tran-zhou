@@ -23,11 +23,15 @@ import sqlite3
 import polars as pl
 
 from app.format import money
+from app.notices import coverage_notices
 from app.schools import School
 
 KEY = "financial_aid"
 TITLE = "Student financial aid"
 QUESTION = "What will I actually pay, at my income?"
+# Named in the reader's terms, because it goes inside sentences like "no net
+# price data at all" rather than being used as a heading.
+SUBJECT = "net price"
 TABLE = "sfa_grants_and_net_price"
 TEMPLATE = "areas/financial_aid.html"
 
@@ -84,6 +88,7 @@ def load(conn: sqlite3.Connection, schools: list[School]) -> dict:
             "headers": BAND_HEADERS,
             "range_chart": None,
             "chart": None,
+            "notices": coverage_notices(list(schools), [], subject=SUBJECT),
         }
 
     frame = frame.with_columns(
@@ -110,12 +115,22 @@ def load(conn: sqlite3.Connection, schools: list[School]) -> dict:
             }
         )
 
+    # A school reporting nothing and a school reporting four bands of five are
+    # different problems and get different sentences.
+    missing_all = [r["school"] for r in rows if all(v is None for v in r["bands"])]
+    missing_some = [
+        r["school"]
+        for r in rows
+        if any(v is None for v in r["bands"]) and not all(v is None for v in r["bands"])
+    ]
+
     return {
         "rows": rows,
         "bands": BANDS,
         "headers": BAND_HEADERS,
         "range_chart": _range_chart(rows),
         "chart": _chart(rows),
+        "notices": coverage_notices(missing_all, missing_some, subject=SUBJECT),
     }
 
 

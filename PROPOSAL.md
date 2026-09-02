@@ -4,7 +4,7 @@
 whether it is better than the schools it resembles.**
 
 **Course:** ENGI 4503, Analytics in Python (MBAxMS) — Fall 2026
-**Status:** v1, submitted for approval
+**Status:** v2 — product framing and data-quality commitments added 2 Sep 2026
 
 | Name | GitHub |
 | --- | --- |
@@ -55,6 +55,64 @@ side-by-side comparison built on two ideas:
 
 The second idea is the one that makes this different from a table of numbers, and it is
 where the analysis lives.
+
+## The Shape of the Product
+
+The comparison is not one fixed table. Schools are compared **area by area**, and inside
+each area the user chooses which metrics they care about. Someone weighing cost against
+debt wants a different page from someone weighing selectivity against outcomes, and
+neither should have to scroll past the other's numbers to find their own.
+
+Two controls drive it: schools on one side, areas on the other. Each area is a
+self-contained module — its own query, its own computed metric, its own template, its own
+test — so the set grows by addition rather than by redesign.
+
+### The metric families
+
+Seven areas were originally scoped from the NCES *Compare Institutions* tool. Working back
+from what a family actually asks, they collapse into five:
+
+| Family | The question behind it | Where it stands |
+| --- | --- | --- |
+| **Student finances** | What will this cost me, and what will I owe? | Net price by income band built; discount and out-of-pocket next |
+| **Selectiveness** | Can I get in — and does anyone who gets in choose to go? | Derived from applications, admits and enrolments |
+| **Admissions profile** | What did the students who got in look like? | Test scores and application requirements |
+| **Student body** | Who goes here? | Race, gender, size and composition |
+| **Outcomes** | Do students finish, and what happens after? | Completion, retention and equity gaps |
+
+Student charges are not a sixth family. A sticker price is only meaningful next to the net
+price it is discounted from, so it belongs inside student finances.
+
+### The finance metrics we are building
+
+Aid broken out by type — Pell against state grants against institutional grants — is
+available, and is not the question a family asks. Three figures answer that question
+directly, and all three are ours to compute rather than to look up:
+
+1. **Average net tuition.** What students actually paid, set against the published price.
+2. **Average discount rate.** Net as a share of sticker. This is the figure that makes two
+   schools with very different published prices directly comparable, and it is the one
+   number that survives a school raising its sticker price and its aid together.
+3. **Average out-of-pocket cost across all students**, not only aid recipients — with the
+   caveat in the next paragraph, which is load-bearing.
+
+The third one needs care. IPEDS net price describes first-time, full-time students
+receiving Title IV aid, who are a minority of the student body at most schools.
+`sfa-all-undergraduates` covers everyone but reports *aid received* rather than a
+published net price, so an all-student figure has to be derived from sticker price and
+average grant aid. It will be labelled as derived wherever it appears, and it will not be
+presented as an IPEDS figure, because it is not one.
+
+### What we are deliberately not building
+
+Both of these were asked for and neither exists in the data. Recording them here so the
+absence is a decision rather than an oversight:
+
+- **Average admitted GPA.** IPEDS does not collect it. The API carries `reqt_hs_gpa`, a
+  flag for whether a school *requires* a GPA, not a value. The number lives in the Common
+  Data Set, which is not a public API.
+- **Merit versus need-based aid.** IPEDS reports institutional grant aid as a single
+  figure with no split. Publishing a merit share would mean inventing one.
 
 ## Questions We Will Answer
 
@@ -137,6 +195,33 @@ Stated up front, because they shape what we can honestly claim.
   across sectors and selectivity, where open-access institutions sit at 20–45%. The
   selective sample remains useful as a fixture for the comparison interface.
 
+## Telling the User What the Data Does Not Cover
+
+Every limitation in the previous section is invisible to the student unless the interface
+says so out loud. A blank cell reads as a zero. A 2021 figure reads as current. Both
+produce a page that looks finished and is wrong, and neither raises an error.
+
+The tool therefore states, at the top of each area and above the charts rather than in a
+footnote beneath them:
+
+- **How old the figures are**, whenever they are older than the normal publication lag for
+  a federal survey. Net price ends at 2021, so in 2026 this reads as five years old. The
+  wording preserves the distinction that matters: a stale figure is a bad quote and still a
+  good comparison, because the schools all moved together. Saying only "out of date" would
+  throw away the half that still works.
+- **Which of the chosen schools report nothing at all**, by name. A student who picked four
+  schools needs to know that it is *their* school that is blank; a count does not tell them
+  that. Caltech reporting no test scores has to be a state the interface can draw, with a
+  reason, rather than an empty cell.
+- **Which schools report only partially**, kept separate from those reporting nothing,
+  because a school missing one income band and a school missing all five are different
+  problems and warrant different confidence.
+
+This lives in `app/notices.py`. An area reports its own coverage gaps, since it is the only
+thing that knows which schools came back empty; the route adds freshness, since that is
+where the year is known. Both are rendered before the reader has had a chance to draw a
+conclusion from the chart.
+
 ## Architecture
 
 A FastAPI backend over SQLite, following the structure of the course's `Wordcraft-By-AP`
@@ -165,7 +250,11 @@ Ordered so that each day ends with something that works.
   construction in Polars. A front end that shows a real comparison.
 - **Day 4** — Peer-adjusted outcomes, tests over the cleaning layer, and the demo path.
 
-**Explicitly out of scope:** post-graduation earnings. College Scorecard has them, but it
-is a second data source with its own join, its own coverage caveats, and its own cleaning,
-and we would rather ship the price and outcome comparison working than three things half
-done.
+**Out of scope for the graded build, with the reason corrected:** post-graduation
+earnings. v1 ruled these out as "a second data source with its own join". That was wrong —
+College Scorecard is served by the *same* Urban API under a different source segment, and
+joins on `unitid` like everything else. The real blockers are coverage: only 2018 returns
+any rows, and `count_not_working` comes back null, so a job placement rate cannot be
+computed at all rather than merely being hard. Median earnings at 6, 8 and 10 years after
+entry are real and usable, and belong on the roadmap as a labelled single-year figure
+rather than a headline.
