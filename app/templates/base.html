@@ -49,6 +49,22 @@
     .notice-mark { flex: none; font-size: .95rem; line-height: 1.3; }
     .notice.warn { color: #6f4a05; background: #fdf6e6; border-color: #e6cf9a; }
     .notice.info { color: #33474f; background: #eef4f6; border-color: #c8d9de; }
+    /* Questionnaire */
+    .quiz { display: flex; flex-direction: column; gap: 1.25rem; align-items: stretch; }
+    .quiz .panel { margin: 0; }
+    .quiz button[type=submit] { align-self: flex-start; }
+    .field-row { display: flex; flex-wrap: wrap; gap: 1rem; }
+    .field-row label, .narrow { display: flex; flex-direction: column; align-items: flex-start; gap: .3rem; font-size: .85rem; font-weight: 600; color: var(--ink-soft); flex: 1 1 12rem; text-align: left; }
+    .field-row label .field, .narrow .field { width: 100%; }
+    .narrow { max-width: 22rem; }
+    .field-row .field, .narrow .field { font-weight: 400; color: var(--ink); }
+    .opt { font-weight: 400; color: var(--ink-faint); }
+    .stages { display: flex; flex-wrap: wrap; gap: 1rem; }
+    .radio { display: flex; align-items: center; gap: .45rem; font-size: .92rem; }
+    select.tall { height: auto; padding: .4rem; }
+    .nav-actions { display: flex; align-items: center; gap: .9rem; }
+    .nav-actions .cta { font-size: .85rem; font-weight: 600; text-decoration: none; padding: .35rem .7rem; border-radius: 4px; background: var(--accent); color: #fff; }
+    .nav-actions .cta:hover { filter: brightness(1.08); }
     .scroll { overflow-x: auto; }
     table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
     th, td { text-align: right; padding: .5rem .6rem; border-bottom: 1px solid var(--rule); white-space: nowrap; }

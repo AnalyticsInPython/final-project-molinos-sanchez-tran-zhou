@@ -4,7 +4,14 @@
   <nav class="topbar">
     <div class="inner">
       <a class="brand" href="/">Like for Like</a>
-      <a class="back" href="/">&larr; Choose different schools</a>
+      <span class="nav-actions">
+        <a class="back" href="/">&larr; Choose different schools</a>
+        {% if profile %}
+          <a class="back" href="/profile">Signed in as {{ profile.name }}</a>
+        {% else %}
+          <a class="cta" href="/profile/new">Create an account</a>
+        {% endif %}
+      </span>
     </div>
   </nav>
 {% endblock %}

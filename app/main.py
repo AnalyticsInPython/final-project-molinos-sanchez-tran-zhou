@@ -108,6 +108,14 @@ def compare(
         return RedirectResponse("/")
 
     keys = [k for k in (area or []) if k in areas.BY_KEY] or [a.KEY for a in areas.ALL]
+    # The comparison itself never needs a profile; this is only so the nav can
+    # say who is signed in instead of offering to sign them up again.
+    signed_in = _current_username(request)
+    profile = None
+    if signed_in:
+        with profiles.connect() as pconn:
+            profile = profiles.get_or_create(pconn, signed_in)
+
     # No years is the snapshot the app has always shown. One year is that
     # snapshot pinned to a year the reader chose. Two or more is a trend.
     wanted = sorted(set(year or []))
@@ -168,6 +176,7 @@ def compare(
             "schools": chosen,
             "sections": sections,
             "years": shown,
+            "profile": profile,
         },
     )
 
@@ -218,6 +227,10 @@ def profile_page(request: Request):
                 "all_schools": all_schools(conn),
                 "max_shortlist": profiles.MAX_SHORTLIST,
                 "error": error,
+                "races": profiles.RACES,
+                "genders": profiles.GENDERS,
+                "states": profiles.STATES,
+                "stages": profiles.STAGES,
             },
         )
 
@@ -243,6 +256,120 @@ def start_profile(username: Annotated[str, Form()]):
         samesite="lax",
     )
     return response
+
+
+@app.get("/profile/new")
+def new_profile_form(request: Request):
+    """The sign-up questionnaire.
+
+    Every question here changes something the app shows. Home state decides
+    whether a public school's in-state or out-of-state tuition applies, which
+    is a $38,000 difference at Michigan. Income bracket picks the net price
+    band. Race and gender join onto outcome data broken out the same way, so
+    a graduation rate can be the one for students like you rather than the
+    headline. Stage decides which area leads the page.
+
+    GPA is the exception and the form says so: IPEDS publishes no admitted
+    GPA for any institution, so it is recorded for the person's own reference
+    and compared against nothing.
+    """
+    with connect() as conn:
+        return templates.TemplateResponse(
+            request,
+            "questionnaire.html",
+            {
+                "schools": all_schools(conn),
+                "races": profiles.RACES,
+                "genders": profiles.GENDERS,
+                "states": profiles.STATES,
+                "stages": profiles.STAGES,
+                "bands": areas.financial_aid.BANDS,
+                "error": request.query_params.get("error"),
+            },
+        )
+
+
+@app.post("/profile/new")
+def create_profile(
+    username: Annotated[str, Form()],
+    display_name: Annotated[str | None, Form()] = None,
+    sat: Annotated[str | None, Form()] = None,
+    act: Annotated[str | None, Form()] = None,
+    gpa: Annotated[str | None, Form()] = None,
+    income_bracket: Annotated[str | None, Form()] = None,
+    home_state: Annotated[str | None, Form()] = None,
+    race: Annotated[str | None, Form()] = None,
+    gender: Annotated[str | None, Form()] = None,
+    stage: Annotated[str | None, Form()] = None,
+    school: Annotated[list[int] | None, Form()] = None,
+):
+    clean = profiles.clean_username(username)
+    if not clean:
+        return RedirectResponse(
+            "/profile/new?error=Usernames+are+3-20+letters%2C+numbers%2C+-+or+_.",
+            status_code=303,
+        )
+
+    with profiles.connect() as pconn:
+        profiles.get_or_create(pconn, clean)
+        profiles.set_scores(
+            pconn,
+            clean,
+            sat=_clean_score(sat, low=400, high=1600),
+            act=_clean_score(act, low=1, high=36),
+            income_bracket=_clean_score(income_bracket, low=1, high=5),
+        )
+        profiles.set_details(
+            pconn,
+            clean,
+            display_name=profiles.clean_name(display_name),
+            gpa=profiles.clean_gpa(gpa),
+            home_state=profiles.clean_choice(home_state, profiles.STATES),
+            race=profiles.clean_choice(race, profiles.RACES),
+            gender=profiles.clean_choice(gender, profiles.GENDERS),
+            stage=profiles.clean_choice(stage, profiles.STAGES),
+        )
+        for unitid in (school or [])[: profiles.MAX_SHORTLIST]:
+            profiles.add_school(pconn, clean, unitid)
+
+    response = RedirectResponse("/profile", status_code=303)
+    response.set_cookie(
+        PROFILE_COOKIE,
+        clean,
+        max_age=PROFILE_COOKIE_MAX_AGE,
+        httponly=True,
+        samesite="lax",
+    )
+    return response
+
+
+@app.post("/profile/details")
+def update_details(
+    request: Request,
+    display_name: Annotated[str | None, Form()] = None,
+    gpa: Annotated[str | None, Form()] = None,
+    home_state: Annotated[str | None, Form()] = None,
+    race: Annotated[str | None, Form()] = None,
+    gender: Annotated[str | None, Form()] = None,
+    stage: Annotated[str | None, Form()] = None,
+):
+    """Change the answers later. Same validation as the questionnaire."""
+    username = _current_username(request)
+    if not username:
+        return RedirectResponse("/profile", status_code=303)
+
+    with profiles.connect() as pconn:
+        profiles.set_details(
+            pconn,
+            username,
+            display_name=profiles.clean_name(display_name),
+            gpa=profiles.clean_gpa(gpa),
+            home_state=profiles.clean_choice(home_state, profiles.STATES),
+            race=profiles.clean_choice(race, profiles.RACES),
+            gender=profiles.clean_choice(gender, profiles.GENDERS),
+            stage=profiles.clean_choice(stage, profiles.STAGES),
+        )
+    return RedirectResponse("/profile", status_code=303)
 
 
 @app.post("/profile/logout")

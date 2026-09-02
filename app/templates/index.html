@@ -4,11 +4,14 @@
   <nav class="topbar">
     <div class="inner">
       <a class="brand" href="/">Like for Like</a>
-      {% if profile %}
-        <a class="back" href="/profile">Signed in as {{ profile.username }}</a>
-      {% else %}
-        <a class="back" href="/profile">Save your scores &amp; shortlist</a>
-      {% endif %}
+      <span class="nav-actions">
+        {% if profile %}
+          <a class="back" href="/profile">Signed in as {{ profile.name }}</a>
+        {% else %}
+          <a class="back" href="/profile">Log in</a>
+          <a class="cta" href="/profile/new">Create an account</a>
+        {% endif %}
+      </span>
     </div>
   </nav>
 {% endblock %}

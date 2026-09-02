@@ -65,6 +65,61 @@
     </section>
 
     <section class="panel" style="margin-bottom: 1.5rem;">
+      <h2 class="panel-title">About you</h2>
+      <p class="panel-hint">
+        These tailor what the comparison shows. Home state decides which tuition applies at a
+        public university; race and gender let outcome rates be shown for students like you
+        rather than the headline. Every one can be cleared again.
+      </p>
+      <form action="/profile/details" method="post">
+        <div class="field-row">
+          <label>Name
+            <input class="field" type="text" name="display_name" value="{{ profile.display_name or '' }}">
+          </label>
+          <label>Home state
+            <select class="field" name="home_state">
+              <option value="">Prefer not to say</option>
+              {% for code in states %}
+                <option value="{{ code }}" {{ "selected" if profile.home_state == code }}>{{ code }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label>GPA <span class="opt">not compared</span>
+            <input class="field" type="number" name="gpa" min="0" max="4" step="0.01"
+                   value="{{ profile.gpa if profile.gpa is not none else '' }}">
+          </label>
+        </div>
+        <div class="field-row" style="margin-top: 1rem;">
+          <label>Race
+            <select class="field" name="race">
+              <option value="">Prefer not to say</option>
+              {% for code, label in races.items() %}
+                <option value="{{ code }}" {{ "selected" if profile.race == code }}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label>Gender
+            <select class="field" name="gender">
+              <option value="">Prefer not to say</option>
+              {% for code, label in genders.items() %}
+                <option value="{{ code }}" {{ "selected" if profile.gender == code }}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label>Where you are
+            <select class="field" name="stage">
+              <option value="">Not sure yet</option>
+              {% for value, label in stages.items() %}
+                <option value="{{ value }}" {{ "selected" if profile.stage == value }}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </label>
+        </div>
+        <p style="margin-top: 1rem;"><button type="submit">Save</button></p>
+      </form>
+    </section>
+
+    <section class="panel">
       <h2 class="panel-title">Your shortlist</h2>
       {% if not shortlist %}
         <p class="hint">No schools saved yet.</p>
