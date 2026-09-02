@@ -9,14 +9,52 @@ the eye track which column is which school — at none of the cost.
 import sqlite3
 from dataclasses import dataclass
 
-# Distinguishable at 5 lines on one chart, and legible on both themes.
+# Five categorical hues, in fixed order. Checked rather than chosen by eye:
+# every adjacent pair clears the colour-blindness separation threshold (worst
+# dE 9.1 light, 8.4 dark) and the normal-vision floor (19.6 / 19.3). The first
+# palette here did not — its blue and violet came out at dE 7.3 for normal
+# vision, which is why two of the five lines looked like one.
+#
+# Three of the light steps sit under 3:1 contrast on white. That is allowed
+# only because every series is also named in a legend and repeated in the
+# table below the chart, so colour is never the only thing carrying identity.
 PALETTE = [
-    "#0B6B57",
-    "#8C5514",
-    "#2F5D9E",
-    "#A03A54",
-    "#5B4B8A",
+    "#2a78d6",  # blue
+    "#eb6834",  # orange
+    "#1baf7a",  # aqua
+    "#eda100",  # yellow
+    "#e87ba4",  # magenta
 ]
+
+# Institution names as IPEDS records them are too long to label a chart with.
+# These are the names a person would say out loud.
+SHORT_NAMES = {
+    186131: "Princeton",
+    166683: "MIT",
+    166027: "Harvard",
+    243744: "Stanford",
+    130794: "Yale",
+    215062: "Penn",
+    110404: "Caltech",
+    198419: "Duke",
+    217156: "Brown",
+    162928: "Johns Hopkins",
+    147767: "Northwestern",
+    190150: "Columbia",
+    190415: "Cornell",
+    144050: "Chicago",
+    110635: "UC Berkeley",
+    110662: "UCLA",
+    227757: "Rice",
+    182670: "Dartmouth",
+    221999: "Vanderbilt",
+    152080: "Notre Dame",
+    170976: "Michigan",
+    131496: "Georgetown",
+    199120: "UNC Chapel Hill",
+    211440: "Carnegie Mellon",
+    179867: "WashU",
+}
 
 
 @dataclass(frozen=True)
@@ -24,6 +62,11 @@ class School:
     unitid: int
     name: str
     color: str
+
+    @property
+    def short(self) -> str:
+        """The name to label a chart with."""
+        return SHORT_NAMES.get(self.unitid, self.name)
 
 
 def all_schools(conn: sqlite3.Connection) -> list[School]:

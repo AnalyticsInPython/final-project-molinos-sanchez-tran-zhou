@@ -1,10 +1,19 @@
 {% extends "base.html" %}
+
+{% block nav %}
+  <nav class="topbar">
+    <div class="inner">
+      <a class="brand" href="/">Like for Like</a>
+      <a class="back" href="/">&larr; Choose different schools</a>
+    </div>
+  </nav>
+{% endblock %}
+
 {% block content %}
-  <h1>Like for Like</h1>
-  <p class="lede">
-    {% for school in schools %}{{ school.name }}{% if not loop.last %} &middot; {% endif %}{% endfor %}
-    &mdash; <a href="/">change</a>
-  </p>
+  <h1>
+    {% for school in schools %}{{ school.short }}{% if not loop.last %} &middot; {% endif %}{% endfor %}
+  </h1>
+  <p class="lede">Compared on {{ sections | length }} area{{ "s" if sections | length != 1 }}.</p>
 
   {% for section in sections %}
     <section class="area">
