@@ -119,6 +119,61 @@
       </form>
     </section>
 
+    {% if profile.stage == "choosing" %}
+    <section class="panel">
+      <h2 class="panel-title">Your offers</h2>
+      <p class="panel-hint">
+        What each school actually asked you to pay, and what the package was made of. We set
+        your figure against the discount that school usually gives families at your income
+        band &mdash; comparing shares of sticker rather than dollars, because published net
+        price stops at {{ offer_year or 2021 }} and comparing old dollars to your offer would
+        report inflation as generosity.
+      </p>
+      {% for row in offer_rows %}
+        <form action="/profile/offers" method="post" class="offer">
+          <input type="hidden" name="unitid" value="{{ row.school.unitid }}">
+          <div class="field-row">
+            <label style="flex: 2 1 12rem;">
+              <span class="chip" style="background: {{ row.school.color }}"></span>
+              {{ row.school.short }}
+            </label>
+            <label>Your cost a year
+              <input class="field" type="text" name="net_offer" placeholder="$0"
+                     value="{{ row.offer.net_offer if row.offer and row.offer.net_offer is not none else '' }}">
+            </label>
+            <label>Of that, grants
+              <input class="field" type="text" name="grant_aid" placeholder="$0"
+                     value="{{ row.offer.grant_aid if row.offer and row.offer.grant_aid is not none else '' }}">
+            </label>
+            <label>Of that, loans
+              <input class="field" type="text" name="loan_aid" placeholder="$0"
+                     value="{{ row.offer.loan_aid if row.offer and row.offer.loan_aid is not none else '' }}">
+            </label>
+            <label style="flex: 0 0 auto; justify-content: flex-end;">
+              <button type="submit">Save</button>
+            </label>
+          </div>
+          {% if row.comparison %}
+            <p class="hint {{ 'warn' if row.comparison.gap is not none and row.comparison.gap < -0.05 }}">
+              Sticker is {{ row.comparison.sticker | money }}{{ " (in-state)" if row.comparison.in_state }}.
+              Your offer forgives {{ row.comparison.your_discount | percent(0) }}{% if row.comparison.typical_discount is not none %},
+              against {{ row.comparison.typical_discount | percent(0) }} typical for your income band
+              in {{ row.comparison.typical_year }}{% endif %}.
+              <strong>{{ row.comparison.verdict }}</strong>
+              {% if row.offer and row.offer.gift_share is not none %}
+                Grants are {{ row.offer.gift_share | percent(0) }} of the package &mdash; the rest is
+                borrowed.
+              {% endif %}
+            </p>
+          {% endif %}
+        </form>
+      {% else %}
+        <p class="hint">Add schools to your shortlist below, then enter what each one offered.</p>
+      {% endfor %}
+    </section>
+
+    {% endif %}
+
     <section class="panel">
       <h2 class="panel-title">Your shortlist</h2>
       {% if not shortlist %}

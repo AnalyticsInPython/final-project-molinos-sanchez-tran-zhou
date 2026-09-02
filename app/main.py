@@ -28,7 +28,7 @@ from fastapi import FastAPI, Form, Query, Request
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 
-from app import areas, profiles
+from app import areas, offers, profiles
 from app.db import connect, latest_year, series_ends, years_available
 from app.format import money, number, percent
 from app.notices import for_area
@@ -211,11 +211,30 @@ def profile_page(request: Request):
     shortlist = []
     error = request.query_params.get("error")
 
+    offer_rows = []
     if username:
         with profiles.connect() as pconn:
             profile = profiles.get_or_create(pconn, username)
+            saved = profiles.offers(pconn, username)
         with connect() as conn:
             shortlist = selected(conn, profile.shortlist)
+            # Only computed for someone who has offers to compare. A student
+            # still deciding where to apply has nothing to put here.
+            if profile.stage == "choosing":
+                for school in shortlist:
+                    offer = saved.get(school.unitid)
+                    comparison = None
+                    if offer and offer.net_offer is not None:
+                        comparison = offers.compare(
+                            conn,
+                            school.unitid,
+                            net_offer=offer.net_offer,
+                            income_band=profile.income_bracket,
+                            home_state=profile.home_state,
+                        )
+                    offer_rows.append(
+                        {"school": school, "offer": offer, "comparison": comparison}
+                    )
 
     with connect() as conn:
         return templates.TemplateResponse(
@@ -231,6 +250,7 @@ def profile_page(request: Request):
                 "genders": profiles.GENDERS,
                 "states": profiles.STATES,
                 "stages": profiles.STAGES,
+                "offer_rows": offer_rows,
             },
         )
 
@@ -369,6 +389,29 @@ def update_details(
             gender=profiles.clean_choice(gender, profiles.GENDERS),
             stage=profiles.clean_choice(stage, profiles.STAGES),
         )
+    return RedirectResponse("/profile", status_code=303)
+
+
+@app.post("/profile/offers")
+def save_offer(
+    request: Request,
+    unitid: Annotated[int, Form()],
+    net_offer: Annotated[str | None, Form()] = None,
+    grant_aid: Annotated[str | None, Form()] = None,
+    loan_aid: Annotated[str | None, Form()] = None,
+):
+    """Record what one school offered. Blanking every field clears it again."""
+    username = _current_username(request)
+    if username:
+        with profiles.connect() as pconn:
+            profiles.set_offer(
+                pconn,
+                username,
+                unitid,
+                net_offer=profiles.clean_money(net_offer),
+                grant_aid=profiles.clean_money(grant_aid),
+                loan_aid=profiles.clean_money(loan_aid),
+            )
     return RedirectResponse("/profile", status_code=303)
 
 

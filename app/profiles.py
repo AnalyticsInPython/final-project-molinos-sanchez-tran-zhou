@@ -93,6 +93,20 @@ CREATE TABLE IF NOT EXISTS profiles (
     created_at      TEXT NOT NULL
 );
 
+-- What a school actually offered this person. Only ever collected from
+-- someone who has offers in hand, which is why it is gated on `stage` rather
+-- than asked of everyone: a student still deciding where to apply has nothing
+-- to put here, and asking implies they should.
+CREATE TABLE IF NOT EXISTS aid_offers (
+    username    TEXT NOT NULL REFERENCES profiles(username),
+    unitid      INTEGER NOT NULL,
+    net_offer   INTEGER,
+    grant_aid   INTEGER,
+    loan_aid    INTEGER,
+    updated_at  TEXT NOT NULL,
+    PRIMARY KEY (username, unitid)
+);
+
 CREATE TABLE IF NOT EXISTS profile_schools (
     username    TEXT NOT NULL REFERENCES profiles(username),
     unitid      INTEGER NOT NULL,
@@ -323,3 +337,90 @@ def set_details(
         (display_name, gpa, home_state, race, gender, stage, username),
     )
     conn.commit()
+
+
+@dataclass(frozen=True)
+class Offer:
+    """One school's actual offer, as the student received it."""
+
+    unitid: int
+    net_offer: int | None
+    grant_aid: int | None
+    loan_aid: int | None
+
+    @property
+    def gift_share(self) -> float | None:
+        """How much of the package is money that is not repaid.
+
+        The number two offers of the same headline size can differ on most:
+        $30,000 of grant and $30,000 of loan are not the same offer, and this
+        is the only field that tells them apart.
+        """
+        total = (self.grant_aid or 0) + (self.loan_aid or 0)
+        if not total:
+            return None
+        return (self.grant_aid or 0) / total
+
+
+def set_offer(
+    conn: sqlite3.Connection,
+    username: str,
+    unitid: int,
+    *,
+    net_offer: int | None,
+    grant_aid: int | None,
+    loan_aid: int | None,
+) -> None:
+    """Record or replace what one school offered. All-None clears the row."""
+    if net_offer is None and grant_aid is None and loan_aid is None:
+        conn.execute(
+            "DELETE FROM aid_offers WHERE username = ? AND unitid = ?",
+            (username, unitid),
+        )
+    else:
+        conn.execute(
+            "INSERT INTO aid_offers (username, unitid, net_offer, grant_aid, loan_aid, "
+            "updated_at) VALUES (?, ?, ?, ?, ?, ?) "
+            "ON CONFLICT(username, unitid) DO UPDATE SET "
+            "net_offer = excluded.net_offer, grant_aid = excluded.grant_aid, "
+            "loan_aid = excluded.loan_aid, updated_at = excluded.updated_at",
+            (
+                username,
+                unitid,
+                net_offer,
+                grant_aid,
+                loan_aid,
+                datetime.now(UTC).isoformat(),
+            ),
+        )
+    conn.commit()
+
+
+def offers(conn: sqlite3.Connection, username: str) -> dict[int, Offer]:
+    rows = conn.execute(
+        "SELECT unitid, net_offer, grant_aid, loan_aid FROM aid_offers WHERE username = ?",
+        (username,),
+    ).fetchall()
+    return {
+        row["unitid"]: Offer(
+            row["unitid"], row["net_offer"], row["grant_aid"], row["loan_aid"]
+        )
+        for row in rows
+    }
+
+
+def clean_money(value: str | None, *, cap: int = 200_000) -> int | None:
+    """A dollar figure from a form field, or None.
+
+    Accepts what people actually type — "$42,500" — and rejects the rest.
+    Zero is kept, because a full ride is a real offer and the most interesting
+    one on the page.
+    """
+    if value is None or not str(value).strip():
+        return None
+    cleaned = str(value).replace("$", "").replace(",", "").strip()
+    try:
+        amount = int(round(float(cleaned)))
+    except (TypeError, ValueError):
+        return None
+    return amount if 0 <= amount <= cap else None

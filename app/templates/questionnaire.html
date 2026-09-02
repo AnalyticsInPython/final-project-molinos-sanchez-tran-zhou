@@ -1,6 +1,26 @@
 {% extends "base.html" %}
 {% block title %}Create an account · Like for Like{% endblock %}
 
+{% block scripts %}
+<script>
+(function () {
+  "use strict";
+  // Stage decides which questions are worth asking. A student still deciding
+  // where to apply has no offer letter, and asking for one implies they are
+  // behind; a student holding offers has already taken the tests.
+  const staged = [...document.querySelectorAll("[data-stage]")];
+  function apply() {
+    const stage = document.querySelector("input[name=stage]:checked").value;
+    staged.forEach((el) => { el.hidden = el.dataset.stage !== stage; });
+  }
+  document.querySelectorAll("input[name=stage]").forEach((radio) =>
+    radio.addEventListener("change", apply)
+  );
+  apply();
+})();
+</script>
+{% endblock %}
+
 {% block nav %}
   <nav class="topbar">
     <div class="inner">
@@ -38,6 +58,23 @@
     </section>
 
     <section class="panel">
+      <h2 class="panel-title">Where you are in this</h2>
+      <p class="panel-hint">
+        This decides what we ask next, and what leads the comparison. Someone still building a
+        list needs to know where they stand; someone holding offers needs to know whether the
+        one in front of them is any good.
+      </p>
+      <div class="stages">
+        {% for value, label in stages.items() %}
+          <label class="radio">
+            <input type="radio" name="stage" value="{{ value }}" {{ "checked" if loop.first }}>
+            {{ label }}
+          </label>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="panel">
       <h2 class="panel-title">Where you live</h2>
       <p class="panel-hint">
         This is the answer that moves the numbers most. A public university charges in-state and
@@ -66,7 +103,7 @@
       </label>
     </section>
 
-    <section class="panel">
+    <section class="panel" data-stage="applying">
       <h2 class="panel-title">Your scores</h2>
       <p class="panel-hint">
         A test score can be set against each school's published 25th&ndash;75th percentile range,
@@ -119,28 +156,26 @@
     </section>
 
     <section class="panel">
-      <h2 class="panel-title">Where you are in this</h2>
-      <p class="panel-hint">This decides what leads the page: a shortlist of maybes wants
-        selectiveness first, a folder of offers wants cost first.</p>
-      <div class="stages">
-        {% for value, label in stages.items() %}
-          <label class="radio">
-            <input type="radio" name="stage" value="{{ value }}" {{ "checked" if loop.first }}>
-            {{ label }}
-          </label>
-        {% endfor %}
-      </div>
-    </section>
-
-    <section class="panel">
-      <h2 class="panel-title">Schools you are looking at <span class="opt">optional</span></h2>
-      <p class="panel-hint">Up to {{ max_shortlist | default(10) }}. You can add and remove them
-        later from your profile; this just saves retyping them.</p>
+      <h2 class="panel-title">
+        <span data-stage="applying">Schools you are looking at</span>
+        <span data-stage="choosing">Schools that admitted you</span>
+        <span class="opt">optional</span>
+      </h2>
+      <p class="panel-hint">
+        Up to {{ max_shortlist | default(10) }}. You can add and remove them later from your
+        profile; this just saves retyping them.
+        <span data-stage="choosing">Once they are saved you can enter what each one offered you,
+        and we will set it against what that school usually charges families at your income.</span>
+      </p>
       <select class="field tall" name="school" multiple size="8">
         {% for school in schools %}<option value="{{ school.unitid }}">{{ school.name }}</option>{% endfor %}
       </select>
       <p class="hint">Hold &#8984; or Ctrl to pick more than one.</p>
     </section>
+
+    <p class="hint" data-stage="choosing">
+      Next step, on your profile: enter each offer and see how it compares.
+    </p>
 
     <button type="submit">Create account</button>
   </form>
