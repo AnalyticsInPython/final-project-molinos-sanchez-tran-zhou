@@ -121,18 +121,11 @@
     .years-key .dot.ok { background: #4d9c72; }
     .years-key .dot.part { background: #d9a94b; }
     .years-key .dot.none { background: #c3ccd6; }
-    .dropdown { position: relative; }
-    .dropdown-toggle { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: .5rem; text-align: left; font-weight: 500; color: var(--ink); background: var(--ground); border: 1px solid var(--rule); padding: .55rem .7rem; }
-    .dropdown-toggle:hover { background: var(--surface); }
-    .dropdown-toggle .caret { color: var(--ink-faint); font-size: .65rem; }
-    .dropdown .menu label { display: flex; align-items: center; gap: .55rem; padding: .45rem .55rem; border-radius: 3px; cursor: pointer; font-size: .92rem; }
-    .dropdown .menu label:hover { background: var(--ground); }
     /* Icons are stroked in the inherited colour so an area reads the same in
-       the menu, on its summary line and on its heading. */
+       the checklist and on its heading. */
     .icon { flex: none; width: 1.15rem; height: 1.15rem; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
     .area-head .icon { align-self: center; color: var(--accent); }
-    .summary-areas { display: flex; align-items: center; gap: .45rem; min-width: 0; }
-    .summary-areas .icon { color: var(--accent); }
+    #area-options label { font-size: .92rem; }
   </style>
 </head>
 <body>
