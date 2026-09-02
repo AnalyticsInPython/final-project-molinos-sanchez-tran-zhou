@@ -27,13 +27,13 @@ def test_recent_data_says_nothing():
 
 
 def test_a_few_years_old_is_context_not_a_warning():
-    notice = age_notice(2023, subject="net price", as_of=2026)
+    notice = age_notice(2023, subject="net price", as_of=2026, series_ends=True)
     assert notice.level == "info"
     assert "2023" in notice.text
 
 
 def test_five_years_old_warns_and_keeps_the_comparison():
-    notice = age_notice(2021, subject="net price", as_of=2026)
+    notice = age_notice(2021, subject="net price", as_of=2026, series_ends=True)
     assert notice.level == "warn"
     assert "2021" in notice.text
     assert "5 years old" in notice.text
@@ -42,9 +42,31 @@ def test_five_years_old_warns_and_keeps_the_comparison():
     assert "quote" in notice.text
 
 
+def test_an_ended_series_may_claim_to_be_the_newest_that_exists():
+    notice = age_notice(2021, subject="net price", as_of=2026, series_ends=True)
+    assert "most recent IPEDS publishes" in notice.text
+
+
+def test_our_own_stale_ingest_does_not_blame_the_survey():
+    """Admissions runs to 2024. Claiming 2021 is the newest available is a lie."""
+    notice = age_notice(2021, subject="admissions", as_of=2026)
+    assert notice.level == "warn"
+    assert "most recent IPEDS publishes" not in notice.text
+    assert "has not loaded" in notice.text
+    assert "comparison" in notice.text
+
+
+def test_the_honest_branch_is_the_default():
+    """An area has to assert its series ended; it is not assumed."""
+    assert "newer years" in age_notice(2022, subject="x", as_of=2026).text
+
+
 def test_the_stale_boundary_is_where_it_says_it_is():
-    assert age_notice(2026 - STALE + 1, subject="x", as_of=2026).level == "info"
-    assert age_notice(2026 - STALE, subject="x", as_of=2026).level == "warn"
+    for ends in (True, False):
+        fresh = age_notice(2026 - STALE + 1, subject="x", as_of=2026, series_ends=ends)
+        stale = age_notice(2026 - STALE, subject="x", as_of=2026, series_ends=ends)
+        assert fresh.level == "info"
+        assert stale.level == "warn"
 
 
 def test_an_undated_figure_warns_rather_than_passing_silently():

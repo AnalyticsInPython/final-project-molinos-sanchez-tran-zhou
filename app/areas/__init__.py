@@ -12,6 +12,7 @@ An area module is expected to define:
     TITLE     str   heading shown on the page
     QUESTION  str   the question this area answers, in a family's words
     SUBJECT   str   the data in the reader's words ("net price"), for notices
+    SERIES_ENDS bool  True only if IPEDS publishes nothing newer than TABLE's year
     ICON      str   inner markup for a 24x24 <svg>, stroked not filled
     TABLE     str   ingest table the year label is read from
     TEMPLATE  str   path under app/templates/
@@ -31,13 +32,13 @@ circulations differently enough that putting the columns side by side invites
 a comparison the data does not support.
 """
 
-from app.areas import financial_aid
+from app.areas import financial_aid, selectiveness
 
 ALL = [
     financial_aid,
+    selectiveness,
     # Claim one and add it here:
     # student_charges,
-    # admissions,
     # retention,
     # enrollment,
     # institution_characteristics,

@@ -34,6 +34,10 @@ QUESTION = "What will I actually pay, at my income?"
 SUBJECT = "net price"
 TABLE = "sfa_grants_and_net_price"
 TEMPLATE = "areas/financial_aid.html"
+# Net price by income band really does stop here: 2022 onward returns HTTP 200
+# with no rows. 2021 is the newest figure that exists, not just the newest we
+# loaded, and the notice is allowed to say so.
+SERIES_ENDS = True
 
 # Drawn on a 24x24 grid, stroked in the caller's colour rather than filled, so
 # every area's icon sits at the same weight beside its title. A banknote: this

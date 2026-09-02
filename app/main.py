@@ -19,13 +19,15 @@ from fastapi.templating import Jinja2Templates
 
 from app import areas
 from app.db import connect, year_for
-from app.format import money
+from app.format import money, number, percent
 from app.notices import for_area
 from app.schools import all_schools, selected
 
 app = FastAPI(title="Like for Like")
 templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
 templates.env.filters["money"] = money
+templates.env.filters["percent"] = percent
+templates.env.filters["number"] = number
 
 # Five is the practical ceiling: past that the tables stop fitting and the
 # chart stops being readable.
@@ -79,6 +81,7 @@ def compare(
                         year,
                         context.get("notices", []),
                         subject=getattr(module, "SUBJECT", module.TITLE.lower()),
+                        series_ends=getattr(module, "SERIES_ENDS", False),
                     ),
                 }
             )

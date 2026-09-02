@@ -54,11 +54,26 @@ def _names(schools) -> str:
     return ", ".join(names[:-1]) + f", and {names[-1]}"
 
 
-def age_notice(year: int | None, *, subject: str, as_of: int | None = None) -> Notice | None:
+def age_notice(
+    year: int | None,
+    *,
+    subject: str,
+    as_of: int | None = None,
+    series_ends: bool = False,
+) -> Notice | None:
     """How old these figures are, when that is old enough to matter.
 
     Silent inside the normal publication lag — a notice on every area every
     time is a notice nobody reads.
+
+    `series_ends` separates two situations that look identical on the page and
+    are not. Net price genuinely stops at 2021: ask IPEDS for 2022 and it
+    returns success with no rows, so 2021 really is the newest figure that
+    exists. Admissions runs to 2024 and this build ingested 2021, which is our
+    limitation rather than the survey's. Telling a student that a stale number
+    is the best available, when a newer one exists, is worse than saying
+    nothing — so the default is the honest, unflattering branch, and an area
+    has to assert that its series has ended.
     """
     if year is None:
         return Notice(
@@ -71,19 +86,33 @@ def age_notice(year: int | None, *, subject: str, as_of: int | None = None) -> N
     if age <= LAG:
         return None
 
+    if series_ends:
+        if age < STALE:
+            return Notice(
+                "info",
+                f"These are {year} figures, the most recent IPEDS publishes for "
+                f"{subject}. Current figures will have moved since.",
+            )
+        return Notice(
+            "warn",
+            f"These are {year} figures — {age} years old, and the most recent IPEDS "
+            f"publishes for {subject}. Do not read them as a quote for next year. "
+            f"The comparison between these schools still holds, because they have all "
+            f"moved since; the amounts have not.",
+        )
+
     if age < STALE:
         return Notice(
             "info",
-            f"These are {year} figures, the most recent IPEDS publishes for {subject}. "
-            f"Current costs will be somewhat higher.",
+            f"These are {year} figures. IPEDS publishes newer years for {subject} "
+            f"that this build has not loaded yet.",
         )
-
     return Notice(
         "warn",
-        f"These are {year} figures — {age} years old, and the most recent IPEDS "
-        f"publishes for {subject}. Do not read them as a quote for next year. "
-        f"The comparison between these schools still holds, because they have all "
-        f"moved since; the amounts have not.",
+        f"These are {year} figures — {age} years old. IPEDS publishes newer years "
+        f"for {subject} that this build has not loaded, so do not read these as a "
+        f"quote for next year. The comparison between these schools still holds; "
+        f"the amounts are out of date.",
     )
 
 
@@ -120,11 +149,18 @@ def coverage_notices(missing_all, missing_some, *, subject: str) -> list[Notice]
     return notices
 
 
-def for_area(year, coverage: list[Notice], *, subject: str, as_of: int | None = None):
+def for_area(
+    year,
+    coverage: list[Notice],
+    *,
+    subject: str,
+    as_of: int | None = None,
+    series_ends: bool = False,
+):
     """Everything an area needs to say, freshness first.
 
     Age comes first because it qualifies every number on the page, where a
     coverage gap qualifies one row.
     """
-    age = age_notice(year, subject=subject, as_of=as_of)
+    age = age_notice(year, subject=subject, as_of=as_of, series_ends=series_ends)
     return ([age] if age else []) + list(coverage)

@@ -1,0 +1,105 @@
+{# Two rates side by side (primary), then raw demand. #}
+
+{% if context.rates_chart %}
+  {% set c = context.rates_chart %}
+  <div class="figure">
+    <h3>Getting in, and choosing to go</h3>
+    <p class="sub">
+      Sorted most selective first. If the two rates measured the same thing, the right-hand
+      column would descend as tidily as the left one does.
+    </p>
+    <svg viewBox="0 0 {{ c.width }} {{ c.height }}" role="img"
+         aria-label="Admit rate and yield rate for each school, on separate scales">
+      {% for head in c.headings %}
+        <text x="{{ head.x }}" y="{{ head.y }}" font-size="11" font-weight="600" fill="#4f5a54">
+          {{ head.text }}
+        </text>
+        <text x="{{ head.x }}" y="{{ head.y + 13 }}" font-size="10" fill="#7b857e">
+          0&ndash;{{ head.max | percent(0) }}
+        </text>
+      {% endfor %}
+      {% for bar in c.bars %}
+        <text x="{{ c.label_x }}" y="{{ bar.text_y }}" text-anchor="end"
+              font-size="12" fill="#17211d">{{ bar.name }}</text>
+        {% for cell in bar.cells %}
+          <rect x="{{ cell.x }}" y="{{ bar.y - 7 }}" width="{{ cell.width }}" height="14"
+                rx="2" fill="{{ '#2a6fb0' if loop.first else '#e07b39' }}"></rect>
+          <text x="{{ cell.label_x }}" y="{{ bar.text_y }}" font-size="11" fill="#4f5a54">
+            {{ cell.value | percent }}
+          </text>
+        {% endfor %}
+      {% endfor %}
+    </svg>
+    <p class="keys">
+      <span><span class="dot" style="background: #2a6fb0"></span> Admit rate</span>
+      <span><span class="dot" style="background: #e07b39"></span> Yield</span>
+      <span>The two panels use different scales &mdash; read down a column, not across.</span>
+    </p>
+  </div>
+{% endif %}
+
+{% if context.volume_chart %}
+  {% set v = context.volume_chart %}
+  <div class="figure">
+    <h3>How many people applied</h3>
+    <p class="sub">Raw demand, not adjusted for size. A large public draws more applications than a small institute for reasons that have nothing to do with desirability.</p>
+    <svg viewBox="0 0 {{ v.width }} {{ v.height }}" role="img"
+         aria-label="Number of applications received by each school">
+      {% for bar in v.bars %}
+        <text x="{{ v.label_x }}" y="{{ bar.text_y }}" text-anchor="end"
+              font-size="12" fill="#17211d">{{ bar.name }}</text>
+        <rect x="{{ v.plot_x }}" y="{{ bar.y }}" width="{{ bar.width }}" height="14"
+              rx="2" fill="{{ bar.color }}"></rect>
+        <text x="{{ bar.label_x }}" y="{{ bar.text_y }}" font-size="11" fill="#4f5a54">
+          {{ bar.value | number }}
+        </text>
+      {% endfor %}
+    </svg>
+  </div>
+{% endif %}
+
+<div class="scroll">
+  <table>
+    <thead>
+      <tr>
+        <th>School</th>
+        <th>Admit rate</th>
+        <th class="metric-head">Yield</th>
+        <th>Applied</th>
+        <th>Admitted</th>
+        <th>Enrolled</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in context.rows %}
+        <tr>
+          <td>
+            <span class="chip" style="background: {{ row.school.color }}"></span>
+            {{ row.school.name }}
+          </td>
+          <td class="metric">
+            {% if row.admit_rate is none %}<span class="missing" title="Not reported">&mdash;</span>
+            {% else %}{{ row.admit_rate | percent }}{% endif %}
+          </td>
+          <td class="metric">
+            {% if row.yield_rate is none %}<span class="missing" title="Not reported">&mdash;</span>
+            {% else %}{{ row.yield_rate | percent }}{% endif %}
+          </td>
+          <td>{{ row.applied | number }}</td>
+          <td>{{ row.admitted | number }}</td>
+          <td>{{ row.enrolled | number }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<p class="note">
+  <strong>Admit rate</strong> is admitted &divide; applied &mdash; how hard the school is to
+  get into. <strong>Yield</strong> is enrolled &divide; admitted &mdash; the share of admitted
+  students who chose to go. IPEDS publishes neither; both are computed here from the three
+  counts beside them. Figures cover first-time, degree-seeking undergraduates, men and women
+  combined. Enrolment uses the school's reported total, not full-time plus part-time, because
+  13 of the 25 schools in this sample record part-time enrolment as a missing-value code
+  rather than as zero.
+</p>
