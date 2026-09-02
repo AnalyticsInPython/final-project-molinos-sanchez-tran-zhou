@@ -35,9 +35,6 @@ QUESTION = "Can I get in — and do the people who get in choose to go?"
 SUBJECT = "admissions"
 TABLE = "admissions_enrollment"
 TEMPLATE = "areas/selectiveness.html"
-# Admissions runs to 2024. This build ingested 2021 to line up with net price,
-# so the staleness here is ours and the notice must not blame IPEDS for it.
-SERIES_ENDS = False
 
 # A funnel: many applications in the top, few enrolments out of the bottom.
 ICON = '<path d="M3 5h18l-7 8v6l-4 2v-8z"/>'
@@ -45,10 +42,18 @@ ICON = '<path d="M3 5h18l-7 8v6l-4 2v-8z"/>'
 # sex 99 is the reported total. Summing sex 1 and 2 instead would be a
 # different number at some schools — Georgetown's parts fall 123 short of its
 # published total — and the total is the figure the school stands behind.
+# The year filter is not optional: the table holds every year we ingested.
+# `{year}` is interpolated through int(), so it cannot carry anything but a
+# number.
+#
+# Pinning sex = 99 also survives a schema change the multi-year pull exposed:
+# IPEDS reported [1, 2, 99] through 2021, added 9 in 2022 and 3 in 2023. Any
+# code that enumerated the categories, or summed men and women to get a total,
+# would quietly change meaning partway along the series.
 QUERY = """
     SELECT unitid, number_applied, number_admitted, number_enrolled_total
     FROM admissions_enrollment
-    WHERE sex = 99
+    WHERE sex = 99 AND year = {year}
 """
 
 COUNTS = ["number_applied", "number_admitted", "number_enrolled_total"]
@@ -58,9 +63,9 @@ COUNTS = ["number_applied", "number_admitted", "number_enrolled_total"]
 SENTINELS = [-1, -2, -3]
 
 
-def load(conn: sqlite3.Connection, schools: list[School]) -> dict:
+def load(conn: sqlite3.Connection, schools: list[School], year: int) -> dict:
     """Applications, admits and enrolments per school, plus the two rates."""
-    frame = pl.read_database(QUERY, conn)
+    frame = pl.read_database(QUERY.format(year=int(year)), conn)
     if frame.is_empty():
         return _empty(schools)
 

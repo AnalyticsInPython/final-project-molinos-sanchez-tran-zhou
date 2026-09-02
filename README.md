@@ -11,8 +11,9 @@ family's income, and whether it does better than the schools it resembles.
 
 ## Status
 
-Data scaffolding. The ingest runs and a 25-school sample database is reproducible across all
-seven comparison areas. No schema, API or front end yet.
+Two areas built — **student financial aid** and **selectiveness** — over a FastAPI app with a
+searchable school picker. The ingest pulls a range of years per endpoint, and each area shows
+the newest year it actually has, which is not the same year for every area.
 
 ## Setup
 
@@ -28,17 +29,31 @@ uv sync
 uv run python scripts/import_ipeds.py
 ```
 
-Pulls ten IPEDS endpoints for 2021 from the Urban Institute Education Data Explorer into
-`data/likeforlike.db` (~3 MB, about 80 seconds, no API key). The database is gitignored —
+Pulls fourteen IPEDS endpoints from the Urban Institute Education Data Explorer into
+`data/likeforlike.db` (~35 MB, about a minute, no API key). The database is gitignored —
 it is rebuilt from this script, never committed.
 
-2021 is the anchor year because it is the last year net price by income bracket exists,
-so it is the only year where cost and outcomes can be read off the same cross-section.
+**Each endpoint gets a range of years, not one anchor year.** Comparison areas pull ten
+years (2015–2024) so a trend can be drawn; reference tables pull four. Every endpoint-year
+asked for is recorded in `ingest_runs`, *including the ones that came back empty* — that is
+how the app tells "IPEDS publishes nothing newer" apart from "we have not loaded it yet",
+without anyone maintaining a flag by hand. Net price stops at 2021 and says so; admissions
+runs to 2024 and does not warn.
+
+`--years N` trims every range to its N most recent years for a faster rebuild.
 
 ```
 scripts/schools.py        the 25-school working sample
 scripts/import_ipeds.py   API -> SQLite, one table per endpoint, no cleaning
 data/likeforlike.db       generated
+app/areas/                one module per comparison area
+app/notices.py            what to tell the reader the figures do not cover
+```
+
+## Running the app
+
+```sh
+uv run uvicorn app.main:app --reload --port 8001
 ```
 
 Each endpoint lands in its own table with whatever columns the API returned. This is a
@@ -71,6 +86,14 @@ up in [PROPOSAL.md](PROPOSAL.md#known-limitations):
   negative `net_price` is real — grant aid exceeding cost of attendance. Never drop a
   value just because it is below zero.
 - **Rates are fractions.** `completion_rate_150pct` is 0.98, not 98.
+- **Every table holds several years, so every query needs a year filter.** Without one a
+  pivot silently averages a decade and still returns a plausible number. Areas take the year
+  as an argument for exactly this reason.
+- **The API's columns and codes drift between years.** `directory` gains the Carnegie 2025
+  classification partway along the range, so table columns are the union across years rather
+  than whatever the first row carried. The `sex` dimension goes `[1, 2, 99]` through 2021,
+  gains `9` in 2022 and `3` in 2023 — pin the total (`99`) and never sum the parts, or the
+  meaning of a series changes halfway along it.
 
 ## Team
 

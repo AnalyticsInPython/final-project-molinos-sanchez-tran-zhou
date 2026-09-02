@@ -34,10 +34,6 @@ QUESTION = "What will I actually pay, at my income?"
 SUBJECT = "net price"
 TABLE = "sfa_grants_and_net_price"
 TEMPLATE = "areas/financial_aid.html"
-# Net price by income band really does stop here: 2022 onward returns HTTP 200
-# with no rows. 2021 is the newest figure that exists, not just the newest we
-# loaded, and the notice is allowed to say so.
-SERIES_ENDS = True
 
 # Drawn on a 24x24 grid, stroked in the caller's colour rather than filled, so
 # every area's icon sits at the same weight beside its title. A banknote: this
@@ -72,19 +68,24 @@ BAND_HEADERS = {
 # type_of_aid 9 is grant or scholarship aid from any source, which is the
 # basis IPEDS computes net price on. income_level 99 is the all-incomes
 # average and would flatten exactly the variation we are here to show.
+#
+# The year filter is not optional: the table holds every year we ingested, and
+# without it the pivot below silently averages a decade into one column.
+# `{year}` is interpolated through int(), so it cannot carry anything but a
+# number.
 QUERY = """
     SELECT unitid, income_level, net_price
     FROM sfa_grants_and_net_price
-    WHERE type_of_aid = 9 AND income_level BETWEEN 1 AND 5
+    WHERE type_of_aid = 9 AND income_level BETWEEN 1 AND 5 AND year = {year}
 """
 
 # Missing and not-applicable. Any other negative is a real price.
 SENTINELS = [-1, -2, -3]
 
 
-def load(conn: sqlite3.Connection, schools: list[School]) -> dict:
+def load(conn: sqlite3.Connection, schools: list[School], year: int) -> dict:
     """Net price per band per school, plus the spread between top and bottom."""
-    frame = pl.read_database(QUERY, conn)
+    frame = pl.read_database(QUERY.format(year=int(year)), conn)
     if frame.is_empty():
         return {
             "rows": [],

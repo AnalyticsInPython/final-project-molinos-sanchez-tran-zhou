@@ -18,7 +18,7 @@ from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 from app import areas
-from app.db import connect, year_for
+from app.db import connect, latest_year, series_ends
 from app.format import money, number, percent
 from app.notices import for_area
 from app.schools import all_schools, selected
@@ -67,8 +67,10 @@ def compare(
             # Not `area`: that is the query parameter, and shadowing it here
             # would read as a bug even though `keys` is already resolved.
             module = areas.BY_KEY[key]
-            year = year_for(conn, module.TABLE)
-            context = module.load(conn, chosen)
+            # The newest year this area actually has, not a build-wide anchor.
+            # Areas end in different years and each shows its own.
+            year = latest_year(conn, module.TABLE)
+            context = module.load(conn, chosen, year)
             sections.append(
                 {
                     "area": module,
@@ -81,7 +83,7 @@ def compare(
                         year,
                         context.get("notices", []),
                         subject=getattr(module, "SUBJECT", module.TITLE.lower()),
-                        series_ends=getattr(module, "SERIES_ENDS", False),
+                        series_ends=series_ends(conn, module.TABLE),
                     ),
                 }
             )
