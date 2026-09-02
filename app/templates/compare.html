@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block content %}
+  <h1>Like for Like</h1>
+  <p class="lede">
+    {% for school in schools %}{{ school.name }}{% if not loop.last %} &middot; {% endif %}{% endfor %}
+    &mdash; <a href="/">change</a>
+  </p>
+
+  {% for section in sections %}
+    <section class="area">
+      <div class="area-head">
+        <h2>{{ section.area.TITLE }}</h2>
+        {% if section.year %}<span class="year">IPEDS {{ section.year }}</span>{% endif %}
+      </div>
+      <p class="question">{{ section.area.QUESTION }}</p>
+      {% with context = section.context %}{% include section.area.TEMPLATE %}{% endwith %}
+    </section>
+  {% endfor %}
+{% endblock %}
