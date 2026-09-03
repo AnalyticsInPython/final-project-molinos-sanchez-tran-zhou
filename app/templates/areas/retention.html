@@ -69,51 +69,6 @@
   </div>
 {% endif %}
 
-{% if context.range_chart %}
-  {% set c = context.range_chart %}
-  <div class="figure">
-    <h3>How far six-year completion spreads across racial groups</h3>
-    <p class="sub">
-      Every reported group is a dot; the hollow marker is the school's own six-year rate.
-      The point is that it sits inside a range it does not describe.
-    </p>
-    <svg viewBox="0 0 {{ c.width }} {{ c.height }}" role="img"
-         aria-label="Completion rate by racial group within each school, against the headline rate">
-      {% for tick in c.ticks %}
-        <line x1="{{ tick.x }}" y1="{{ c.top }}" x2="{{ tick.x }}" y2="{{ tick.y_end }}"
-              stroke="#dce1d9" stroke-width="1"></line>
-        <text x="{{ tick.x }}" y="{{ c.axis_y }}" text-anchor="middle"
-              font-size="11" fill="#7b857e">{{ tick.label }}</text>
-      {% endfor %}
-      {% for bar in c.bars %}
-        <text x="{{ c.label_x }}" y="{{ bar.text_y }}" text-anchor="end"
-              font-size="12" fill="#17211d">{{ bar.name }}</text>
-        <line x1="{{ bar.x_low }}" y1="{{ bar.y }}" x2="{{ bar.x_high }}" y2="{{ bar.y }}"
-              stroke="#d8c39a" stroke-width="5" stroke-linecap="round"></line>
-        {% for dot in bar.dots %}
-          <circle cx="{{ dot.x }}" cy="{{ bar.y }}" r="4" fill="#a8791f" opacity=".85">
-            <title>{{ bar.name }} — {{ dot.label }}</title>
-          </circle>
-        {% endfor %}
-        {% if bar.x_headline %}
-          <circle cx="{{ bar.x_headline }}" cy="{{ bar.y }}" r="6" fill="none"
-                  stroke="#17211d" stroke-width="1.8">
-            <title>{{ bar.name }} — six-year rate for all students</title>
-          </circle>
-        {% endif %}
-        <text x="{{ bar.range_x }}" y="{{ bar.text_y }}" font-size="11" fill="#7b857e">
-          {{ bar.range }}
-        </text>
-      {% endfor %}
-    </svg>
-    <p class="keys">
-      <span><span class="dot" style="background: #a8791f"></span> One racial group</span>
-      <span><span class="dot" style="background: #fff; box-shadow: inset 0 0 0 1.5px #17211d"></span> All students</span>
-      <span>Figure at right is the spread.</span>
-    </p>
-  </div>
-{% endif %}
-
 <div class="scroll">
   <table>
     <thead>
@@ -124,7 +79,6 @@
         <th>Finished in 6</th>
         <th>Left after year one</th>
         <th>Cohort</th>
-        <th>Spread by race</th>
       </tr>
     </thead>
     <tbody>
@@ -149,12 +103,6 @@
             {% endif %}
           </td>
           <td>{{ row.cohort | number }}</td>
-          <td>
-            {% if row.race_range is none %}<span class="missing">&mdash;</span>
-            {% else %}{{ row.race_range | percent(0) }}
-              <span class="missing">({{ row.groups_shown }} groups)</span>
-            {% endif %}
-          </td>
         </tr>
       {% endfor %}
     </tbody>
@@ -169,13 +117,10 @@
   which follow students who started eight years earlier. Both are facts about the school;
   neither is a stage in the other&rsquo;s story.
   <strong>Took longer</strong> is the six-year rate minus the four-year rate &mdash; the
-  share of a cohort that finishes, but not on time, and pays for the extra year.
-  <strong>Spread by race</strong> is the distance between the best and worst reported group
-  on the six-year rate. We compute both; nobody publishes either. The four-year rate is
-  itself derived: IPEDS ships a <code>completion_rate_4yr</code> that reads zero for every
-  institution here, so it is computed from the underlying award counts and checked against
-  the published six-year rate, which it reproduces exactly. Groups with fewer than {{ 30 }} students in the cohort are left out, and
-  two categories are excluded from the race spread entirely &mdash; international students
-  and students whose ethnicity went unrecorded describe a registrar's filing rather than a
-  background a student would claim.
+  share of a cohort that finishes, but not on time, and pays for the extra year. IPEDS
+  publishes neither figure. The four-year rate is itself derived: IPEDS ships a
+  <code>completion_rate_4yr</code> that reads zero for every institution here, so it is
+  computed from the underlying award counts and checked against the published six-year
+  rate, which it reproduces exactly. A school whose cohort is under 30 students is shown
+  as unreported rather than as a rate one person could move by several points.
 </p>

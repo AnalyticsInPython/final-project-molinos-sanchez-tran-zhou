@@ -40,14 +40,13 @@ Ordered by value per hour. Build downward.
 
 ### Areas
 
-1. ~~**Retention and graduation.**~~ **Built.** Reframed from the Pell gap to on-time
-   versus eventual completion — the original note is kept below because the reasoning
-   about equity gaps still applies to the by-race spread the area shows.
-   The strongest unbuilt area. `grad_rates_pell` breaks
-   completion out by Pell status and `grad_rates` by race, so the finding is an equity
-   gap rather than a headline rate — Michigan is 82% for Black students against 96% for
-   Asian, behind a 93% average. It is also the only area where the 25-school sample
-   shows real spread.
+1. ~~**Retention and graduation.**~~ **Built.** Four-year against six-year completion,
+   and the share of a first-year class that does not come back. It was first built
+   around the Pell gap and a by-race spread; both were cut on 3 Sep 2026 — Pell because
+   it is not a question this tool's users are asking, race because a breakdown nobody
+   asked for was leading the area. The by-race data was the best in the project, though
+   (Michigan is 83% for Black students against 95% for Asian, behind 93% overall), and
+   it is the first case for [Cuts](#cuts--breaking-a-metric-out-by-who-you-are) below.
 2. **Student charges.** Cheapest to build; joins the table financial aid already reads.
    Sticker against net at the lowest band: Penn is $83,298 published against $344 paid.
    **Decide first:** `tuition_type` 2/3/4 is in-district / in-state / out-of-state, and

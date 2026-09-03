@@ -1,10 +1,9 @@
 """Tests for the retention and graduation area.
 
-Three guard published fields that are present, plausible and wrong:
+Two guard published fields that are present, plausible and wrong:
 `completers_100pct` in grad_rates is the missing sentinel in every row of this
-sample, `completion_rate_4yr` in outcome_measures reads zero for every
-institution, and a cohort of three students will happily report "33%". All
-three would produce a chart that looks finished.
+sample, and `completion_rate_4yr` in outcome_measures reads zero for every
+institution. Both would produce a chart that looks finished.
 
 `test_the_derivation_matches_the_published_six_year_rate` is the one that makes
 the four-year figure trustworthy: the same arithmetic, applied to the six-year
@@ -13,7 +12,6 @@ awards, has to reproduce the rate IPEDS publishes.
 
 import pytest
 
-from app import codes
 from app.areas import retention
 from app.db import DB_PATH, connect, latest_year, years_available
 from app.schools import all_schools, selected
@@ -101,37 +99,6 @@ def test_one_row_per_school_from_a_table_that_repeats_them(conn, year):
     assert count == 1
 
 
-def test_a_cohort_of_three_cannot_carry_a_rate(conn, year):
-    """Michigan reports 33% for 3 American Indian or Alaska Native students.
-
-    One person's outcome moves that figure 33 points. Including it produced a
-    62-point "spread" where the real one is nearer 12.
-    """
-    row = _row(retention.load(conn, selected(conn, [MICHIGAN]), year), MICHIGAN)
-    assert row["suppressed"] >= 1
-    assert row["race_range"] < 0.25
-
-
-def test_reporting_categories_are_not_an_equity_gap(conn, year):
-    """International and unknown describe filing, not a background."""
-    excluded = {codes.RACE[c] for c in codes.NOT_AN_IDENTITY}
-    for row in retention.load(conn, all_schools(conn), year)["rows"]:
-        if row["best"]:
-            assert row["best"]["race"] not in excluded
-            assert row["worst"]["race"] not in excluded
-
-
-def test_the_six_year_rate_sits_inside_the_range_by_race(conn, year):
-    """The marker is the same measure as the dots — both 150% of normal time."""
-    row = _row(retention.load(conn, selected(conn, [MICHIGAN]), year), MICHIGAN)
-    assert row["worst"]["rate"] < row["rate_6yr"] < row["best"]["rate"]
-
-
-def test_suppression_is_disclosed_not_silent(conn, year):
-    context = retention.load(conn, selected(conn, [MICHIGAN]), year)
-    assert "too small" in " ".join(n.text for n in context["notices"])
-
-
 def test_no_sentinel_reaches_the_page(conn, year):
     for row in retention.load(conn, all_schools(conn), year)["rows"]:
         for key in ("rate_4yr", "rate_6yr", "retention", "cohort"):
@@ -161,9 +128,7 @@ def test_attrition_comes_from_counts_not_the_rounded_rate(conn, year):
     """
     rows = retention.load(conn, all_schools(conn), year)["rows"]
     exact = {
-        r["school"].short: r["left_after_year_one"]
-        for r in rows
-        if r["did_not_return"] is not None
+        r["school"].short: r["left_after_year_one"] for r in rows if r["did_not_return"] is not None
     }
     assert exact["Michigan"] != exact["Carnegie Mellon"]
     for row in rows:

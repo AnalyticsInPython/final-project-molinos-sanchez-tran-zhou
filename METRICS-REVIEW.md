@@ -142,8 +142,8 @@ strategy. Net price measures your bill. Whoever decides to "use the columns we
 already pull" should be pointed at this paragraph.
 
 **Every headline metric in the app is a gap or a rate we compute, not a number
-we look up.** `spread` (financial aid), `yield` (selectiveness), `pell_gap` and
-`race_range` (retention), `debt_to_earnings` (outcomes), athlete share
+we look up.** `spread` (financial aid), `yield` (selectiveness), `took_longer` and
+`left_after_year_one` (retention), `debt_to_earnings` (outcomes), athlete share
 (athletics). In each case the published figure conceals the finding and the
 computed one reveals it. That is the project's actual analytical contribution
 and it is consistent across seven areas built by four people, which is more than
