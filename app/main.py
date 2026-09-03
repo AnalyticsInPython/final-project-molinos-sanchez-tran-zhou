@@ -176,6 +176,15 @@ def compare(
                 notices = context.get("notices", [])
             else:
                 context = module.load(conn, chosen, showing)
+                # An area can also tailor on a profile field that is not a
+                # breakdown of any survey row — financial aid marks the
+                # reader's own income band on an axis it already draws, and
+                # names the sticker their home state qualifies them for. That
+                # is a change to the card's own context rather than a second
+                # chart above it, so it is merged in here rather than routed
+                # through cut.html.
+                if tailoring and profile is not None and hasattr(module, "tailor"):
+                    context.update(module.tailor(conn, chosen, showing, profile))
                 selection = cuts.choose(
                     module, explicit.get(module.KEY), profile if tailoring else None
                 )

@@ -1,15 +1,21 @@
 """Tests for the financial aid area.
 
-Two of these guard traps rather than code: that we never drop a real negative
-net price, and that the sentinels never reach the page as if they were prices.
-Both are mistakes that produce a plausible-looking table.
+Three of these guard traps rather than code: that we never drop a real
+negative net price, that the sentinels never reach the page as if they were
+prices, and that the 2023 published sticker is never blended into the 2021
+net price the tailored card shows beside it. All three are mistakes that
+produce a plausible-looking table.
 """
+
+import re
 
 import pytest
 
+from app import cuts
 from app.areas import financial_aid
 from app.db import DB_PATH, connect, latest_year
-from app.schools import all_schools
+from app.profiles import Profile
+from app.schools import all_schools, selected
 
 pytestmark = pytest.mark.skipif(
     not DB_PATH.exists(),
@@ -18,6 +24,19 @@ pytestmark = pytest.mark.skipif(
 
 CALTECH = 110404
 DARTMOUTH = 182670
+
+# The demo's five, in the order the shortlist holds them. Chosen because
+# Maya's own answers are drawn on every one: two schools pay her to attend at
+# her income, one charges $15,000, and the two publics land on opposite sides
+# of the residency line.
+MIT, STANFORD, MICHIGAN, BERKELEY, CARNEGIE_MELLON = 166683, 243744, 170976, 110635, 211440
+FIVE = [MIT, STANFORD, MICHIGAN, BERKELEY, CARNEGIE_MELLON]
+
+
+def _profile(**values) -> Profile:
+    return Profile(
+        username="maya", sat_score=None, act_score=None, shortlist=[], **values
+    )
 
 
 @pytest.fixture

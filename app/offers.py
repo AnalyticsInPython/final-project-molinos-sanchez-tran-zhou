@@ -64,6 +64,27 @@ class Comparison:
         return "About what this school usually offers at your income."
 
 
+def school_state(conn: sqlite3.Connection, unitid: int) -> str | None:
+    """Which state a school is in, from its newest row that names one.
+
+    Not simply the newest row: `directory` gained its 2024 rows with a blank
+    `state_abbr` for some schools — Stanford and Carnegie Mellon among them —
+    so "the newest row" and "the newest row that says anything" are different
+    queries, and only the second one answers the question. Getting this wrong
+    makes a Californian an out-of-state student at Stanford.
+
+    Lives here rather than in an area because two callers need the same
+    answer: this module prices an offer against the sticker the student
+    qualifies for, and the tailored financial aid card names that sticker.
+    """
+    row = conn.execute(
+        "SELECT state_abbr FROM directory WHERE unitid = ? AND state_abbr IS NOT NULL "
+        "AND state_abbr != '' ORDER BY year DESC LIMIT 1",
+        (unitid,),
+    ).fetchone()
+    return row["state_abbr"] if row else None
+
+
 def _cost_of_attendance(conn, unitid: int, year: int, tuition_type: int) -> int | None:
     row = conn.execute(
         "SELECT t.tuition_fees_ft + r.room_board + r.books_supplies + r.exp_other AS coa "
@@ -91,14 +112,8 @@ def compare(
     percentage over — a rate needs a denominator, and inventing one would make
     the most confident-looking number on the page the least supported.
     """
-    school_state = conn.execute(
-        "SELECT state_abbr FROM directory WHERE unitid = ? AND state_abbr IS NOT NULL "
-        "AND state_abbr != '' ORDER BY year DESC LIMIT 1",
-        (unitid,),
-    ).fetchone()
-    in_state = bool(
-        home_state and school_state and school_state["state_abbr"] == home_state
-    )
+    state = school_state(conn, unitid)
+    in_state = bool(home_state and state and state == home_state)
     tuition_type = IN_STATE if in_state else OUT_OF_STATE
 
     latest = conn.execute(
