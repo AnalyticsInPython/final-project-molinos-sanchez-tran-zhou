@@ -205,8 +205,17 @@ def year_meaning(conn: sqlite3.Connection, year: int, trend: bool = False) -> st
     """What the year on the card means here, because it is not the obvious thing.
 
     outcome_measures labelled 2021 follows the class that started in fall
-    2014; fall_retention labelled 2021 follows the class that started in fall
-    2020. Neither is "students who graduated in 2021".
+    2014 — one class, with one cohort count, whose awards are tallied at four
+    years and again at six. The natural reading, that a "2021 four-year rate"
+    is the class of 2017 and the six-year rate the class of 2015, is how some
+    sites present it and is wrong here: both rates share `cohort_adj`.
+    fall_retention labelled 2021 follows the class that started in fall 2020.
+    Neither is "students who graduated in 2021".
+
+    `cohort_year` is the fall the class entered, checked table against table:
+    Stanford's grad_rates cohort of 1,738 (cohort_year 2016) equals its fall
+    2016 entrants in fall_retention exactly, and its outcome_measures cohort
+    of 1,677 (cohort_year 2014) equals its fall 2014 entrants.
     """
     started = _cohort_year(conn, TABLE, year)
     if started is None and trend:
@@ -225,14 +234,17 @@ def year_meaning(conn: sqlite3.Connection, year: int, trend: bool = False) -> st
         )
     if trend:
         return (
-            f"Each year's graduation figures follow students who started {year - started} years "
-            f"earlier — {year} reports the class of fall {started}. The retention line follows "
-            f"the class that started the year before each label."
+            f"Each year's graduation figures follow one class that started {year - started} "
+            f"years before the label, counted at four years and again at six — {year} is the "
+            f"class of fall {started}. The retention line follows the class that started the "
+            f"year before each label."
         )
     return (
-        f"The {year} graduation figures follow students who started in fall {started}; "
-        f"{year} is when IPEDS reported them, not when they enrolled. Left after year one "
-        f"follows the class that started in fall {year - 1} and came back in fall {year}."
+        f"Every graduation figure labelled {year} follows one class — students who started "
+        f"in fall {started} — counted at four years and again at six. The four-year rate is "
+        f"not a later class. {year} is when IPEDS reported them, not when anyone enrolled. "
+        f"Left after year one is a different class: those who started in fall {year - 1} and "
+        f"came back in fall {year}."
     )
 
 

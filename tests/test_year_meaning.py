@@ -43,7 +43,28 @@ def test_retention_reads_the_cohort_from_the_table(conn):
     assert started < year - 5, "a six-year rate cannot describe a recent cohort"
     text = retention.year_meaning(conn, year)
     assert f"started in fall {started}" in text
+    assert "one class" in text and "four years and again at six" in text, (
+        "the four- and six-year rates share a cohort and the page must say so"
+    )
     assert f"fall {year - 1}" in text, "retention's cohort is named separately"
+
+
+def test_the_four_and_six_year_rates_share_one_cohort(conn):
+    """The reason the wording insists on 'one class': both awards are counted
+    against the same cohort_adj in the same row, and cohort_year is the fall
+    that class entered — Stanford's cohort equals its fall entrants exactly."""
+    row = conn.execute(
+        "SELECT cohort_adj, cohort_year, cohort_adj_6yr FROM outcome_measures "
+        "WHERE unitid = 243744 AND year = 2021 AND ftpt = 1 AND fed_aid_type = 99 "
+        "AND class_level = 1"
+    ).fetchone()
+    assert row["cohort_adj_6yr"] < 0, "no separate six-year cohort in this survey structure"
+    entrants = conn.execute(
+        "SELECT prev_cohort_adj FROM fall_retention WHERE unitid = 243744 AND year = ? "
+        "AND ftpt = 1",
+        (row["cohort_year"] + 1,),
+    ).fetchone()[0]
+    assert row["cohort_adj"] == entrants
 
 
 def test_the_race_cut_names_its_own_cohort(conn):
