@@ -157,7 +157,7 @@
     const gaps = [];
     for (const school of chosen) {
       for (const key of activeAreas()) {
-        if (!covered[key].has(school.unitid + ":" + year)) {
+        if (!covered[key].has(school.id + ":" + year)) {
           gaps.push({ school: school.short, area: COVERAGE.titles[key] });
         }
       }
@@ -237,7 +237,7 @@
           ? chosen.map((school) =>
               Math.max(
                 ...open.filter((year) =>
-                  activeAreas().some((key) => covered[key].has(school.unitid + ":" + year))
+                  activeAreas().some((key) => covered[key].has(school.id + ":" + year))
                 )
               )
             )
