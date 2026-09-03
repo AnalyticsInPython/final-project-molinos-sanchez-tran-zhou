@@ -70,6 +70,63 @@ Ordered by value per hour. Build downward.
 - **Is the aid renewable** *(post-application)*. IPEDS cannot answer it. Asking makes
   the student go and check, which is the useful part.
 
+### Athletics — a third source, and the widest spread we have found
+
+Scoped 2 Sep 2026 while pulling athletics data for an unrelated piece of work. The
+headline metric a prospective athlete wants is **what share of the student body is a
+varsity athlete**, and it separates schools harder than anything else in the project:
+**2.1% at UCLA to 26.6% at Caltech**, a twelve-fold range, against graduation rates that
+span 91–98% across the same 25 schools.
+
+**It is not in IPEDS.** IPEDS carries only membership flags — `member_ncaa`,
+`conf_number_football` and similar in `institutional-characteristics`. No participation,
+no athletics money.
+
+**It is also not a scrape.** It is EADA, the Equity in Athletics Disclosure Act
+collection, published as bulk files by the Department of Education:
+
+    https://ope.ed.gov/athletics/api/dataFiles/file?fileName=EADA_2024-2025.zip
+
+- `instLevel.xlsx` — one row per institution, 168 columns
+- `schools.xlsx` — one row per sport per institution
+- 2,037 institutions in 2024-25; **25/25 of our sample**, joined on `unitid`
+- Survey years 2003 through 2025, one zip each
+
+Do **not** use EADA's own JSON API for this: it ignores its year parameter entirely, so
+`?year=2020` and `?surveyYear=2020` both return the newest survey. The bulk files are the
+only route to history.
+
+Metrics worth building, all from `instLevel.xlsx`:
+
+| Metric | Why it earns its place |
+| --- | --- |
+| Athlete share of the student body | `UNDUP_CT_PARTIC_MEN + _WOMEN` over `EFTotalCount`. The headline. |
+| Athletic aid per athlete | $0 to ~$54,000. Encodes scholarship policy, not just money. |
+| Men's / women's participation and aid split | The Title IX comparison, already computed in the file. |
+| Sports offered | From `schools.xlsx`, one row per sport. |
+| NCAA classification | `classification_name`, e.g. "NCAA Division I-FCS". |
+
+Four traps, each of which produces a plausible wrong number:
+
+- **`PARTIC_*` double-counts multi-sport athletes; `UNDUP_CT_PARTIC_*` does not.** A
+  cross-country runner who also runs track appears twice in the first. Using the wrong one
+  overstates Furman's athlete share as 19.6% when it is 15.9% — one in five rather than
+  one in six.
+- **$0 athletic aid is a reported value, not a missing one.** Across 2,037 institutions
+  the column is 1,366 positive, 671 exactly zero and never null. The zeros are almost all
+  Division III (223 of 235 D-III-with-football) plus the Ivy League, none of which awards
+  athletic scholarships. Treating $0 as missing deletes a real and decision-changing fact:
+  an Ivy at $0 means need-based aid only.
+- **Revenues always equal expenses.** Institutional support is booked as revenue, so every
+  filing balances and EADA's own summary line reads $0. **EADA cannot show an athletics
+  deficit** and nothing built from it may imply one.
+- **`EFTotalCount` is EADA's own full-time undergraduate count**, not an IPEDS figure.
+  Use it as the denominator so the ratio is internally consistent, and label it as EADA's.
+
+Cost: xlsx-in-zip rather than JSON, so the ingest needs `openpyxl` and a second fetch
+shape. That is the only structural difference — the join key and the per-year table
+pattern are identical to what `import_ipeds.py` already does.
+
 ### Infrastructure
 
 - **Per-area ingest years.** Several endpoints run to 2023 or 2024 and are pulled to
@@ -90,6 +147,9 @@ Not rejected, just not now.
   rows, and `count_not_working` is null so a placement rate cannot be computed at all.
   Median earnings at 6/8/10 years are real and usable as a labelled single-year figure.
 - **Loan default rate.** `scorecard/default`, one row per school, near-free to add.
+- **Athletics deficit / institutional subsidy.** Not in EADA, not in IPEDS, not in any
+  federal collection. It lives only in a university's audited financial statements or its
+  IRS Form 990. Worth writing down so nobody goes looking for it twice.
 - **Endowment per student.** `nacubo/endowments`. Explains *why* a school can discount
   to near zero.
 - **Missing-data summary block.** A standing list of every gap, complementing the
