@@ -1,0 +1,140 @@
+{# The two gaps the headline rate hides, then the numbers behind them. #}
+
+{% if context.gap_chart %}
+  {% set c = context.gap_chart %}
+  <div class="figure">
+    <h3>Students on a Pell grant against students on no aid</h3>
+    <p class="sub">
+      Both rates are usually in the nineties, so the distance between them is the finding
+      rather than either number. Sorted widest gap first.
+    </p>
+    <svg viewBox="0 0 {{ c.width }} {{ c.height }}" role="img"
+         aria-label="Completion rate for Pell grant recipients against students on no federal aid">
+      {% for tick in c.ticks %}
+        <line x1="{{ tick.x }}" y1="{{ c.top }}" x2="{{ tick.x }}" y2="{{ tick.y_end }}"
+              stroke="#dce1d9" stroke-width="1"></line>
+        <text x="{{ tick.x }}" y="{{ c.axis_y }}" text-anchor="middle"
+              font-size="11" fill="#7b857e">{{ tick.label }}</text>
+      {% endfor %}
+      {% for bar in c.bars %}
+        <text x="{{ c.label_x }}" y="{{ bar.text_y }}" text-anchor="end"
+              font-size="12" fill="#17211d">{{ bar.name }}</text>
+        <line x1="{{ bar.x_pell }}" y1="{{ bar.y }}" x2="{{ bar.x_no_aid }}" y2="{{ bar.y }}"
+              stroke="#c9d6e4" stroke-width="5" stroke-linecap="round"></line>
+        <circle cx="{{ bar.x_pell }}" cy="{{ bar.y }}" r="5.5" fill="#c0692c"
+                stroke="#fff" stroke-width="2">
+          <title>{{ bar.name }} — on a Pell grant: {{ bar.pell }}</title>
+        </circle>
+        <circle cx="{{ bar.x_no_aid }}" cy="{{ bar.y }}" r="5.5" fill="#23557e"
+                stroke="#fff" stroke-width="2">
+          <title>{{ bar.name }} — on no federal aid: {{ bar.no_aid }}</title>
+        </circle>
+        <text x="{{ bar.gap_x }}" y="{{ bar.text_y }}" font-size="11" fill="#7b857e">
+          {{ bar.gap }}
+        </text>
+      {% endfor %}
+    </svg>
+    <p class="keys">
+      <span><span class="dot" style="background: #c0692c"></span> On a Pell grant</span>
+      <span><span class="dot" style="background: #23557e"></span> On no federal aid</span>
+      <span>Figure at right is the gap.</span>
+    </p>
+  </div>
+{% endif %}
+
+{% if context.range_chart %}
+  {% set c = context.range_chart %}
+  <div class="figure">
+    <h3>How far completion spreads across racial groups</h3>
+    <p class="sub">
+      Every reported group is a dot; the hollow marker is the school's headline rate. The
+      point is that the headline sits inside a range it does not describe.
+    </p>
+    <svg viewBox="0 0 {{ c.width }} {{ c.height }}" role="img"
+         aria-label="Completion rate by racial group within each school, against the headline rate">
+      {% for tick in c.ticks %}
+        <line x1="{{ tick.x }}" y1="{{ c.top }}" x2="{{ tick.x }}" y2="{{ tick.y_end }}"
+              stroke="#dce1d9" stroke-width="1"></line>
+        <text x="{{ tick.x }}" y="{{ c.axis_y }}" text-anchor="middle"
+              font-size="11" fill="#7b857e">{{ tick.label }}</text>
+      {% endfor %}
+      {% for bar in c.bars %}
+        <text x="{{ c.label_x }}" y="{{ bar.text_y }}" text-anchor="end"
+              font-size="12" fill="#17211d">{{ bar.name }}</text>
+        <line x1="{{ bar.x_low }}" y1="{{ bar.y }}" x2="{{ bar.x_high }}" y2="{{ bar.y }}"
+              stroke="#d8c39a" stroke-width="5" stroke-linecap="round"></line>
+        {% for dot in bar.dots %}
+          <circle cx="{{ dot.x }}" cy="{{ bar.y }}" r="4" fill="#a8791f" opacity=".85">
+            <title>{{ bar.name }} — {{ dot.label }}</title>
+          </circle>
+        {% endfor %}
+        {% if bar.x_headline %}
+          <circle cx="{{ bar.x_headline }}" cy="{{ bar.y }}" r="6" fill="none"
+                  stroke="#17211d" stroke-width="1.8">
+            <title>{{ bar.name }} — headline rate for all students</title>
+          </circle>
+        {% endif %}
+        <text x="{{ bar.range_x }}" y="{{ bar.text_y }}" font-size="11" fill="#7b857e">
+          {{ bar.range }}
+        </text>
+      {% endfor %}
+    </svg>
+    <p class="keys">
+      <span><span class="dot" style="background: #a8791f"></span> One racial group</span>
+      <span><span class="dot" style="background: #fff; box-shadow: inset 0 0 0 1.5px #17211d"></span> Headline rate</span>
+      <span>Figure at right is the spread.</span>
+    </p>
+  </div>
+{% endif %}
+
+<div class="scroll">
+  <table>
+    <thead>
+      <tr>
+        <th>School</th>
+        <th class="metric-head">Pell gap</th>
+        <th>On a Pell grant</th>
+        <th>On no aid</th>
+        <th>Headline</th>
+        <th>Returns after year one</th>
+        <th>Spread by race</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in context.rows %}
+        <tr>
+          <td>
+            <span class="chip" style="background: {{ row.school.color }}"></span>
+            {{ row.school.name }}
+          </td>
+          <td class="metric">
+            {% if row.pell_gap is none %}<span class="missing" title="Not reported">&mdash;</span>
+            {% else %}{{ row.pell_gap | percent(0) }}{% endif %}
+          </td>
+          <td>{% if row.pell is none %}&mdash;{% else %}{{ row.pell | percent(0) }}{% endif %}</td>
+          <td>{% if row.no_aid is none %}&mdash;{% else %}{{ row.no_aid | percent(0) }}{% endif %}</td>
+          <td>{% if row.headline is none %}&mdash;{% else %}{{ row.headline | percent(0) }}{% endif %}</td>
+          <td>{% if row.retention is none %}&mdash;{% else %}{{ row.retention | percent(0) }}{% endif %}</td>
+          <td>
+            {% if row.race_range is none %}<span class="missing">&mdash;</span>
+            {% else %}{{ row.race_range | percent(0) }}
+              <span class="missing">({{ row.groups_shown }} groups)</span>
+            {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<p class="note">
+  <strong>Pell gap</strong> is completion for students on no federal aid minus completion for
+  students on a Pell grant &mdash; a proxy for how a school does by students who arrived
+  without money. <strong>Spread by race</strong> is the distance between the best and worst
+  reported group. We compute both; IPEDS publishes neither, and the headline rate it does
+  publish conceals both. Completion is measured at 150% of normal time, so six years for a
+  four-year degree. Groups with fewer than {{ 30 }} students in the cohort are left out, and
+  two categories are excluded from the race spread entirely &mdash; international students
+  and students whose ethnicity went unrecorded describe a registrar's filing rather than a
+  background a student would claim.
+</p>

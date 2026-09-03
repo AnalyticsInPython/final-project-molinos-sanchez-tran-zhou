@@ -50,6 +50,7 @@ from app.areas import (
     financial_aid,
     institution_characteristics,
     outcomes,
+    retention,
     selectiveness,
 )
 
@@ -58,13 +59,13 @@ ALL = [
     # what it leads to, who is there, and the reference material last.
     financial_aid,
     selectiveness,
+    retention,
     outcomes,
     enrollment,
     athletics,
     institution_characteristics,
     # Claim one and add it here:
     # student_charges,
-    # retention,
 ]
 
 BY_KEY = {area.KEY: area for area in ALL}

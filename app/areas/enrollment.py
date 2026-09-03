@@ -39,6 +39,7 @@ import sqlite3
 
 import polars as pl
 
+from app import codes
 from app.format import percent
 from app.notices import coverage_notices
 from app.schools import School
@@ -59,21 +60,9 @@ ICON = (
     '<path d="M3 20c0-3.5 2.7-6 6-6s6 2.5 6 6"/><path d="M14.5 15c2.6.3 4.5 2.4 4.5 5"/>'
 )
 
-# Verified against the Urban Institute API's own varlist for this endpoint —
-# see the module docstring. Order matters: it is the stacking order in the
-# composition chart, and it is not the order a generic IPEDS race codebook
-# would suggest.
-RACE = {
-    1: "White",
-    2: "Black",
-    3: "Hispanic",
-    4: "Asian",
-    5: "American Indian or Alaska Native",
-    6: "Native Hawaiian or other Pacific Islander",
-    7: "Two or more races",
-    8: "International",
-    9: "Race/ethnicity unknown",
-}
+# Labels live in app/codes.py, shared with the retention area. Order matters
+# here: it is the stacking order in the composition chart.
+RACE = codes.RACE
 INTERNATIONAL = 8
 
 # A fixed qualitative colour per category, consistent across every school's
