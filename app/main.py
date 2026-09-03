@@ -37,7 +37,7 @@ from app.schools import all_schools, selected
 
 env.load()
 
-app = FastAPI(title="Like for Like")
+app = FastAPI(title="In League")
 templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
 templates.env.filters["money"] = money
 templates.env.filters["percent"] = percent

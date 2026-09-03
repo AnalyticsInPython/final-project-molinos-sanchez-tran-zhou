@@ -1,4 +1,4 @@
-# Like for Like
+# In League
 
 Final project for the MBAxMS Python Bootcamp (Fall 2026).
 
