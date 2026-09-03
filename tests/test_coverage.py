@@ -8,7 +8,7 @@ notices were written to prevent.
 
 import pytest
 
-from app.areas import financial_aid, selectiveness
+from app.areas import financial_aid, institution_characteristics, selectiveness
 from app.db import DB_PATH, connect, years_available
 
 pytestmark = pytest.mark.skipif(
@@ -19,7 +19,7 @@ pytestmark = pytest.mark.skipif(
 CALTECH = 110404
 STANFORD = 243744
 
-AREAS = [financial_aid, selectiveness]
+AREAS = [financial_aid, selectiveness, institution_characteristics]
 
 
 @pytest.fixture

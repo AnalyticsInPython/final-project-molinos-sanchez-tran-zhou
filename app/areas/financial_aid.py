@@ -34,6 +34,7 @@ QUESTION = "What will I actually pay, at my income?"
 # price data at all" rather than being used as a heading.
 SUBJECT = "net price"
 TABLE = "sfa_grants_and_net_price"
+SOURCE = "IPEDS"
 TEMPLATE = "areas/financial_aid.html"
 
 # Drawn on a 24x24 grid, stroked in the caller's colour rather than filled, so

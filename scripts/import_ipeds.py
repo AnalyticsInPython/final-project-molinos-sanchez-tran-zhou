@@ -18,10 +18,18 @@ Two things about missing values, both learned the hard way:
   cost of attendance, and the sample contains five such values (-1012 to
   -2251), none of them -1/-2/-3. A blanket "drop negatives" rule deletes real
   data — and deletes the most striking fact in the dataset.
+
+A second source, alongside IPEDS: the College Scorecard API (`fetch_scorecard`
+below), for the one thing IPEDS does not publish — what graduates go on to
+earn. Different agency, different API, but the same `unitid`, so it joins
+against everything else here with no crosswalk. It needs its own note on
+"year": its three fields are three different cohorts (see that function's
+docstring), not one collection year like the IPEDS pulls above.
 """
 
 import argparse
 import json
+import os
 import sqlite3
 import urllib.error
 import urllib.request
@@ -33,7 +41,15 @@ from pathlib import Path
 from schools import SCHOOLS, UNITIDS
 
 BASE = "https://educationdata.urban.org/api/v1/college-university/ipeds"
+SCORECARD_BASE = "https://api.data.gov/ed/collegescorecard/v1/schools"
+SCORECARD_FIELDS = [
+    "id",
+    "latest.earnings.6_yrs_after_entry.median",
+    "latest.earnings.10_yrs_after_entry.median",
+    "latest.aid.median_debt.completers.overall",
+]
 DB_PATH = Path(__file__).resolve().parent.parent / "data" / "likeforlike.db"
+ENV_PATH = Path(__file__).resolve().parent.parent / ".env"
 
 # 2021 is the anchor for anything that still needs one: the last year net price
 # exists. Most endpoints now pull a range instead, and discover their own
@@ -67,6 +83,7 @@ AREAS = {
     "enrollment": "Who goes here?",
     "retention_and_graduation": "Do students come back, and finish?",
     "academic_libraries": "What are the library holdings?",
+    "outcomes": "What do graduates earn, and what do they owe?",
 }
 
 # table name -> (path after /ipeds/, years, area)
@@ -128,6 +145,73 @@ def fetch(endpoint: str, year: int) -> tuple[list[dict], str]:
         raise RuntimeError(f"{endpoint} {year}: got {len(rows)} rows, API reported {expected}")
 
     return rows, first
+
+
+def load_dotenv(path: Path) -> None:
+    """`KEY=value` lines into the environment, without overriding what's set.
+
+    Mirrors app/env.py rather than importing it — scripts/ and app/ are
+    deliberately separate (see README's "scripts/ is ingest only"), and this
+    is four lines.
+    """
+    if not path.exists():
+        return
+    for line in path.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        os.environ.setdefault(key.strip(), value.strip())
+
+
+def fetch_scorecard(unitids: list[int], api_key: str) -> tuple[list[dict], str]:
+    """Post-graduation earnings and debt from the College Scorecard API.
+
+    A different agency and a different API from the IPEDS pulls above, but
+    Scorecard's `id` field IS the IPEDS unitid — renamed here on the way in
+    so it joins against every other table with no crosswalk. Every other
+    field keeps the API's own dotted name, per this script's no-cleaning rule.
+
+    The three fields do not share a cohort, checked against the Scorecard
+    data dictionary's cohort map:
+
+    - `median_debt.completers.overall` is FY2020-21 completers with a loan.
+    - `earnings.6_yrs_after_entry.median` tracks students who *entered* in
+      2013-15, earnings measured in 2020-21.
+    - `earnings.10_yrs_after_entry.median` tracks students who entered in
+      2009-11, also measured in 2020-21.
+
+    None of them describe "the class of 2021." They are the most recent
+    numbers the government has published for each measure, all landing in
+    the same 2020-21 window — which is the only reason this ingest tags them
+    with the same `YEAR` anchor as everything else here.
+    """
+    fields = ",".join(SCORECARD_FIELDS)
+    base_url = (
+        f"{SCORECARD_BASE}?api_key={api_key}"
+        f"&id__in={','.join(map(str, unitids))}&per_page=100&fields={fields}"
+    )
+
+    rows: list[dict] = []
+    page = 0
+    while True:
+        with urllib.request.urlopen(f"{base_url}&page={page}", timeout=60) as response:
+            payload = json.load(response)
+        rows.extend(payload["results"])
+        meta = payload["metadata"]
+        page += 1
+        if page * meta["per_page"] >= meta["total"]:
+            break
+
+    expected = payload["metadata"]["total"]
+    if len(rows) != expected:
+        raise RuntimeError(f"scorecard: got {len(rows)} rows, API reported {expected}")
+
+    for row in rows:
+        row["unitid"] = row.pop("id")
+
+    # Never persist the key, even to a gitignored local file.
+    return rows, base_url.replace(api_key, "REDACTED")
 
 
 def create_table(connection: sqlite3.Connection, name: str, rows: list[dict]) -> None:
@@ -199,6 +283,8 @@ def fetch_one(job: tuple) -> dict:
 
 
 def main() -> None:
+    load_dotenv(ENV_PATH)
+
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--db", type=Path, default=DB_PATH)
     parser.add_argument(
@@ -298,6 +384,34 @@ def main() -> None:
         span = f"{min(live)}-{max(live)}" if len(live) > 1 else str(live[0])
         tail = f"  (empty: {min(empty)}+)" if empty and min(empty) > max(live) else ""
         print(f"  {table:<34} {span:<10} {len(rows):>6} rows  {len(live):>2} yrs{tail}")
+
+    # Pinned to YEAR regardless of --year: its three fields are pooled
+    # cohorts from a fixed Treasury/NSLDS release, not a year this project's
+    # anchor can move. See fetch_scorecard's docstring for what each measures.
+    api_key = os.environ.get("COLLEGE_SCORECARD_API_KEY") or "DEMO_KEY"
+    try:
+        rows, url = fetch_scorecard(UNITIDS, api_key)
+    except urllib.error.HTTPError as error:
+        print(f"  {'scorecard_outcomes':<34} HTTP {error.code} — skipped")
+        rows = []
+
+    if rows:
+        create_table(connection, "scorecard_outcomes", rows)
+        covered = len({r["unitid"] for r in rows})
+        connection.execute(
+            "INSERT INTO ingest_runs VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                "scorecard_outcomes",
+                "outcomes",
+                YEAR,
+                url,
+                len(rows),
+                covered,
+                datetime.now(UTC).isoformat(),
+                AREAS["outcomes"],
+            ),
+        )
+        print(f"  {'scorecard_outcomes':<34} {YEAR}  {len(rows):>6} rows  {covered:>2}/25 schools")
 
     connection.commit()
     connection.close()

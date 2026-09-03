@@ -1,0 +1,178 @@
+{# One figure — a locator map — then the reference table. No chart on the
+   table itself: see SCOPE.md's note not to force one onto reference data. #}
+
+{% if context.map %}
+  <div class="figure">
+    <h3>Where they are</h3>
+    {% if maptiler_key %}
+      <p class="sub">Pan and zoom like any map. Marker colour matches each school's chip everywhere else on this page.</p>
+      <link href="https://cdn.jsdelivr.net/npm/maplibre-gl@6.7.0/dist/maplibre-gl.css" rel="stylesheet">
+      <div id="map-institution-characteristics" style="height: 22rem; border: 1px solid var(--rule); border-radius: 4px;"></div>
+      <script type="application/json" id="map-dots-institution-characteristics">{{ context.map.dots | tojson }}</script>
+      <script type="module">
+        {#
+          @maptiler/sdk (the "official" wrapper) ships ESM-only as of v4 and
+          imports "maplibre-gl" as a bare specifier — that only resolves under
+          a bundler, not a plain <script type="module">, and throws in the
+          browser. Talking to MapTiler's own hosted style/tile URLs directly
+          with maplibre-gl (the library the wrapper sits on top of, and which
+          has no such import of its own) sidesteps that entirely.
+        #}
+        import * as maplibregl from "https://cdn.jsdelivr.net/npm/maplibre-gl@6.7.0/dist/maplibre-gl.mjs";
+
+        const dots = JSON.parse(
+          document.getElementById("map-dots-institution-characteristics").textContent
+        );
+
+        const map = new maplibregl.Map({
+          container: "map-institution-characteristics",
+          style: "https://api.maptiler.com/maps/streets-v2/style.json?key=" +
+            encodeURIComponent({{ maptiler_key | tojson }}),
+        });
+
+        const bounds = new maplibregl.LngLatBounds();
+        for (const dot of dots) {
+          const el = document.createElement("div");
+          el.style.display = "flex";
+          el.style.alignItems = "center";
+          el.style.gap = "6px";
+
+          const swatch = document.createElement("span");
+          swatch.style.cssText =
+            "width: 12px; height: 12px; border-radius: 50%; flex: none; " +
+            "border: 2px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.2); background: " + dot.color;
+
+          const label = document.createElement("span");
+          label.textContent = dot.name;
+          label.style.cssText =
+            "font: 600 12px system-ui, sans-serif; color: #17211d; background: #fff; " +
+            "padding: 1px 6px; border-radius: 3px; white-space: nowrap; box-shadow: 0 1px 2px rgba(0,0,0,.15);";
+
+          el.append(swatch, label);
+
+          new maplibregl.Marker({ element: el, anchor: "left" })
+            .setLngLat([dot.lon, dot.lat])
+            .addTo(map);
+          bounds.extend([dot.lon, dot.lat]);
+        }
+
+        if (dots.length > 1) {
+          map.fitBounds(bounds, { padding: 60, duration: 0 });
+        } else if (dots.length === 1) {
+          map.setCenter([dots[0].lon, dots[0].lat]);
+          map.setZoom(10);
+        }
+      </script>
+    {% else %}
+      <p class="sub note">
+        Map not shown &mdash; no <code>MAPTILER_API_KEY</code> is set. Copy <code>.env.example</code>
+        to <code>.env</code> and add a free key from
+        <a href="https://cloud.maptiler.com/account/keys/" target="_blank" rel="noopener">cloud.maptiler.com</a>.
+      </p>
+    {% endif %}
+  </div>
+{% endif %}
+
+{# Attributes as rows, schools as columns: scanning one row compares every
+   school on a single fact, which is the actual reading this table is for.
+   See base.html's `table.compare` rule for why. #}
+<div class="scroll">
+  <table class="compare">
+    <thead>
+      <tr>
+        <th scope="col">&nbsp;</th>
+        {% for row in context.rows %}
+          <th scope="col">
+            <span class="chip" style="background: {{ row.school.color }}"></span>
+            {% if row.url %}
+              <a href="{{ row.url }}" target="_blank" rel="noopener">{{ row.school.short }}</a>
+            {% else %}
+              {{ row.school.short }}
+            {% endif %}
+          </th>
+        {% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <th scope="row">Location</th>
+        {% for row in context.rows %}
+          <td>
+            {% if row.city and row.state %}{{ row.city }}, {{ row.state }}
+            {% else %}<span class="missing">&mdash;</span>{% endif %}
+          </td>
+        {% endfor %}
+      </tr>
+      <tr>
+        <th scope="row">Setting</th>
+        {% for row in context.rows %}<td>{{ row.locale or "—" }}</td>{% endfor %}
+      </tr>
+      <tr>
+        <th scope="row">Control</th>
+        {% for row in context.rows %}<td>{{ row.control or "—" }}</td>{% endfor %}
+      </tr>
+      <tr>
+        <th scope="row">Size</th>
+        {% for row in context.rows %}<td>{{ row.size or "—" }}</td>{% endfor %}
+      </tr>
+      <tr>
+        <th scope="row">Calendar</th>
+        {% for row in context.rows %}<td>{{ row.calendar or "—" }}</td>{% endfor %}
+      </tr>
+      <tr>
+        <th scope="row">Student : faculty</th>
+        {% for row in context.rows %}
+          <td class="metric">
+            {% if row.student_faculty_ratio %}{{ row.student_faculty_ratio }}:1
+            {% else %}<span class="missing">&mdash;</span>{% endif %}
+          </td>
+        {% endfor %}
+      </tr>
+      <tr>
+        <th scope="row">Housing</th>
+        {% for row in context.rows %}
+          <td>
+            {% if row.housing %}
+              Yes{% if row.dormitory_capacity %} ({{ "{:,}".format(row.dormitory_capacity) }} beds){% endif %}
+            {% else %}
+              No
+            {% endif %}
+          </td>
+        {% endfor %}
+      </tr>
+      <tr>
+        <th scope="row">Religious affiliation</th>
+        {% for row in context.rows %}<td>{{ row.religious or "—" }}</td>{% endfor %}
+      </tr>
+      <tr>
+        <th scope="row">Top fields of study{% if context.fields_year %} ({{ context.fields_year }}){% endif %}</th>
+        {% for row in context.rows %}
+          <td>
+            {% if row.top_fields %}
+              {% for field in row.top_fields %}
+                {{ field.label }} ({{ field.share_pct }}%){% if not loop.last %}<br>{% endif %}
+              {% endfor %}
+            {% else %}
+              <span class="missing">&mdash;</span>
+            {% endif %}
+          </td>
+        {% endfor %}
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<p class="note">
+  <strong>Setting</strong> is NCES's locale for the school's own address, not its metro area
+  &mdash; Cambridge, MA reads as a midsize city even though it sits inside greater Boston.
+  <strong>Student:faculty ratio</strong> counts every instructional faculty member against
+  every student, full- and part-time alike &mdash; it is a rough proxy for how much personal
+  attention is realistic, not a class-size guarantee.
+  <strong>Religious affiliation</strong> of &ldquo;None&rdquo; means IPEDS recorded the school
+  as having no affiliation &mdash; a real answer, not a missing one.
+  <strong>Top fields of study</strong> are each field's share of that school's own completions
+  across all award levels (by primary major, all races and sexes combined) in the year shown
+  next to the row &mdash; on its own window, not the year the rest of this table is showing;
+  the total a share is taken against is IPEDS's own reported total, not our sum of the rows
+  shown.
+</p>

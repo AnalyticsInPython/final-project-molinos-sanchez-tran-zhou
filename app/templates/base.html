@@ -57,6 +57,22 @@
     thead th { font-size: .78rem; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-faint); }
     .metric { font-weight: 700; color: var(--accent); }
     .missing { color: var(--ink-faint); }
+    /* A cell that stacks a primary fact over a lighter secondary one, so
+       related columns (city+setting, control+size) can merge into one
+       without losing either value. */
+    td.stack { white-space: normal; }
+    td.stack .sub { display: block; font-size: .78rem; color: var(--ink-faint); margin-top: .1rem; }
+
+    /* An attribute-rows / school-columns table: for areas that are mostly
+       categorical facts rather than one comparable number, the default
+       school-per-row table forces every fact about a school onto one line —
+       right-aligned prose, mixed row heights. Flipped, each row compares one
+       fact across every school, which is the shape the reading actually is. */
+    table.compare th, table.compare td { text-align: left; white-space: normal; vertical-align: top; }
+    table.compare thead th { text-transform: none; letter-spacing: normal; font-size: .92rem; font-weight: 600; color: var(--ink); padding-bottom: .65rem; }
+    table.compare tbody th { font-weight: 600; font-size: .82rem; color: var(--ink-soft); padding-right: 1.1rem; min-width: 9rem; }
+    table.compare tbody tr:nth-child(odd) { background: var(--ground); }
+    table.compare td.metric { font-weight: 700; color: var(--accent); }
     .note { font-size: .82rem; color: var(--ink-faint); margin: 1rem 0 0; }
     svg { max-width: 100%; height: auto; }
     .figure { margin: 0 0 1.75rem; }

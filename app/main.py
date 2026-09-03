@@ -15,6 +15,7 @@ the areas stay comparable to each other.
     uv run uvicorn app.main:app --reload
 """
 
+import os
 from pathlib import Path
 from typing import Annotated
 
@@ -22,17 +23,27 @@ from fastapi import FastAPI, Query, Request
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 
-from app import areas
+from app import areas, env
 from app.db import connect, latest_year, series_ends, years_available
 from app.format import money, number, percent
 from app.notices import for_area
 from app.schools import all_schools, selected
+
+env.load()
 
 app = FastAPI(title="Like for Like")
 templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
 templates.env.filters["money"] = money
 templates.env.filters["percent"] = percent
 templates.env.filters["number"] = number
+# `tojson` comes from FastAPI's Jinja2Templates itself (Starlette registers
+# it), not from plain Jinja2 — so the institution-characteristics map, the
+# one template that needs it, can drop data straight into a <script> block
+# without anyone here having to add it.
+#
+# Empty string, not missing, when unset — the map template checks truthiness
+# and renders a "no key" note rather than a broken map.
+templates.env.globals["maptiler_key"] = os.environ.get("MAPTILER_API_KEY", "")
 
 # Five is the practical ceiling: past that the tables stop fitting and the
 # chart stops being readable.
@@ -136,6 +147,10 @@ def compare(
                     "mode": "trend" if trending else "snapshot",
                     "context": context,
                     "notices": notices,
+                    # Almost always IPEDS; outcomes.py is the one area whose
+                    # TABLE comes from a different agency's API entirely, and
+                    # crediting it to IPEDS would be wrong, not just vague.
+                    "source": getattr(module, "SOURCE", "IPEDS"),
                 }
             )
 

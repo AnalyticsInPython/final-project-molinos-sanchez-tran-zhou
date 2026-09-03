@@ -14,6 +14,7 @@ An area module is expected to define:
     SUBJECT   str   the data in the reader's words ("net price"), for notices
     ICON      str   inner markup for a 24x24 <svg>, stroked not filled
     TABLE     str   ingest table the year label is read from
+    SOURCE    str   agency/API the year label is credited to, e.g. "IPEDS"
     TEMPLATE  str   path under app/templates/
     load(conn, schools, year) -> dict    the template's context
     trend(conn, schools, years) -> dict   optional: the multi-year view
@@ -42,16 +43,25 @@ circulations differently enough that putting the columns side by side invites
 a comparison the data does not support.
 """
 
-from app.areas import financial_aid, selectiveness
+from app.areas import financial_aid, institution_characteristics, selectiveness
 
 ALL = [
     financial_aid,
     selectiveness,
+    institution_characteristics,
     # Claim one and add it here:
     # student_charges,
     # retention,
     # enrollment,
-    # institution_characteristics,
+    #
+    # outcomes is built and tested (post-grad earnings/debt via the College
+    # Scorecard API) but deliberately not wired in: ROADMAP.md's "Parking
+    # lot" already scopes this exact feature through a different route — the
+    # same Urban Institute API every other ingest uses — and reports it
+    # blocked there. Two ingest paths to the same data is a decision for the
+    # team, not something to land quietly in a merge. See outcomes.py's
+    # docstring for both sides.
+    # outcomes,
 ]
 
 BY_KEY = {area.KEY: area for area in ALL}
