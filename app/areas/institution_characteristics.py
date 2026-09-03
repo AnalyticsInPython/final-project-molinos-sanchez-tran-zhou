@@ -64,11 +64,14 @@ would not agree with IPEDS's own by construction. Backfilling to the same
 school's nearest earlier good year keeps one source of truth and costs
 nothing when a table is fully current, which is most of them, most years.
 
-Labelled, not silent: a school shown from an earlier year gets a small
-`(IPEDS YYYY)` note next to the affected fields, and the page-level notice
-says so before any table is read. Silently substituting a 2022 fact for a
-2024 one, with no mark, is the mistake this module's own coverage-notice
-work exists to prevent everywhere else.
+Labelled where it matters, silent where it doesn't. `institutional_characteristics`
+(calendar system — a real, if rare, policy change) still gets a small
+`(IPEDS YYYY)` note plus a page-level notice when backfilled. `directory`
+(location, control, size) backfills without either: none of those meaningfully
+change year to year for a school that already exists, and a freshness caveat
+on a fact that cannot go stale is a notice nobody reads. `directory_year` and
+`directory_is_stale` stay on each row regardless — cheap to keep, useful if
+that judgment call ever needs revisiting — the template just doesn't show them.
 """
 
 import sqlite3
@@ -274,8 +277,12 @@ def load(conn: sqlite3.Connection, schools: list[School], year: int) -> dict:
 
         directory_year = d.get("year")
         characteristics_year = c.get("year")
-        if directory_year is not None and directory_year != year:
-            backfilled.append((school, directory_year))
+        # Only `institutional_characteristics` earns a staleness mark.
+        # `directory`'s fields — location, control, size — do not meaningfully
+        # change year to year for an existing school, so backfilling them is
+        # silent; calling attention to it every time would be a notice nobody
+        # reads. Calendar system is a real, if rare, policy change, so it
+        # still gets one.
         if characteristics_year is not None and characteristics_year != year:
             backfilled.append((school, characteristics_year))
 
@@ -476,3 +483,19 @@ def _https(url: str | None) -> str | None:
     if not url:
         return None
     return url if url.startswith("http") else f"https://{url}"
+
+
+def highlights(context: dict) -> list[str]:
+    """One line naming the school with the most personal attention here.
+
+    Optional, like `trend`/`coverage` elsewhere — see financial_aid.highlights
+    for the shared convention.
+    """
+    rows = [row for row in context.get("rows", []) if row.get("student_faculty_ratio")]
+    if len(rows) < 2:
+        return []
+    smallest = min(rows, key=lambda row: row["student_faculty_ratio"])
+    return [
+        f"{smallest['school'].short} has the most personal attention here — "
+        f"{smallest['student_faculty_ratio']} students per faculty member."
+    ]

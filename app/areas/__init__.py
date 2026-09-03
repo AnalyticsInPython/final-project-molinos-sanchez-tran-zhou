@@ -43,16 +43,16 @@ circulations differently enough that putting the columns side by side invites
 a comparison the data does not support.
 """
 
-from app.areas import financial_aid, institution_characteristics, selectiveness
+from app.areas import enrollment, financial_aid, institution_characteristics, selectiveness
 
 ALL = [
     financial_aid,
     selectiveness,
+    enrollment,
     institution_characteristics,
     # Claim one and add it here:
     # student_charges,
     # retention,
-    # enrollment,
     #
     # outcomes is built and tested (post-grad earnings/debt via the College
     # Scorecard API) but deliberately not wired in: ROADMAP.md's "Parking

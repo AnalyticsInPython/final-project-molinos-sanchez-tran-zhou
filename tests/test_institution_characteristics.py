@@ -102,14 +102,24 @@ def test_directory_and_characteristics_backfill_independently(conn):
     assert caltech["characteristics_is_stale"] is True
 
 
-def test_a_backfilled_year_produces_a_named_notice(conn):
-    """The reader has to be told which school and how old, not just that
-    something, somewhere, might be off."""
-    result = institution_characteristics.load(conn, all_schools(conn), 2024)
-    assert result["notices"], "13/25 schools backfilled in 2024 produced no notice"
+def test_a_backfilled_calendar_year_produces_a_named_notice(conn):
+    """`institutional_characteristics` (calendar system) drops to 17/25 in
+    2023 — Caltech among them. The reader has to be told which school and
+    how old, not just that something, somewhere, might be off."""
+    result = institution_characteristics.load(conn, all_schools(conn), 2023)
+    assert result["notices"], "8/25 schools backfilled in 2023 produced no notice"
     text = " ".join(n.text for n in result["notices"])
-    assert "Stanford" in text
+    assert "Caltech" in text
     assert "2022" in text
+
+
+def test_a_directory_only_gap_produces_no_notice(conn):
+    """`directory` (location, control, size) backfills silently — Stanford's
+    2024 directory row is missing, but its `institutional_characteristics`
+    row is fine that year, so nothing here should mention Stanford at all."""
+    result = institution_characteristics.load(conn, all_schools(conn), 2024)
+    text = " ".join(n.text for n in result["notices"])
+    assert "Stanford" not in text
 
 
 def test_public_and_private_control_are_both_present(conn, year):
@@ -266,3 +276,17 @@ def test_a_covered_year_actually_renders(conn):
     for unitid, yr in (pairs[0], pairs[len(pairs) // 2], pairs[-1]):
         context = institution_characteristics.load(conn, selected(conn, [unitid]), yr)
         assert context["rows"], f"claims {unitid} in {yr} and draws nothing"
+
+
+def test_highlights_names_the_narrowest_ratio(conn, year):
+    """Caltech and MIT are tied at 3:1 — the narrowest in this sample."""
+    context = institution_characteristics.load(conn, all_schools(conn), year)
+    lines = institution_characteristics.highlights(context)
+    assert lines
+    assert "Caltech" in lines[0] or "MIT" in lines[0]
+
+
+def test_highlights_is_empty_for_a_single_school(conn, year):
+    schools = [s for s in all_schools(conn) if s.unitid == CALTECH]
+    context = institution_characteristics.load(conn, schools, year)
+    assert institution_characteristics.highlights(context) == []

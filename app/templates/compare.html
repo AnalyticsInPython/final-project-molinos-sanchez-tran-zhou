@@ -18,6 +18,16 @@
     {{ years[0] }} to {{ years[-1] }}{% endif %}.
   </p>
 
+  {% if highlights %}
+    {# Each line is computed from an area's own already-shown figures — see
+       e.g. financial_aid.highlights — not a separate editorial claim. #}
+    <ul class="highlights">
+      {% for line in highlights %}
+        <li><span class="highlight-mark" aria-hidden="true">&#10024;</span> {{ line }}</li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+
   {% for section in sections %}
     <section class="area">
       <div class="area-head">

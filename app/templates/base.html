@@ -49,6 +49,14 @@
     .notice-mark { flex: none; font-size: .95rem; line-height: 1.3; }
     .notice.warn { color: #6f4a05; background: #fdf6e6; border-color: #e6cf9a; }
     .notice.info { color: #33474f; background: #eef4f6; border-color: #c8d9de; }
+    /* Highlights: data-derived superlatives across the compared schools, one
+       per area (see e.g. financial_aid.highlights). Deliberately not styled
+       like a `.notice` — those are caveats to read before trusting a number,
+       this is neither a caveat nor a claim beyond what the areas below it
+       already show, so it gets its own upbeat, non-warning treatment. */
+    .highlights { list-style: none; margin: 0 0 1.75rem; padding: 0; display: flex; flex-direction: column; gap: .5rem; }
+    .highlights li { display: flex; gap: .55rem; align-items: baseline; font-size: .9rem; line-height: 1.5; padding: .65rem .85rem; border-radius: 4px; background: #eef7f2; border: 1px solid #cfe6da; color: var(--ink); }
+    .highlight-mark { flex: none; font-size: .95rem; line-height: 1.3; }
     .scroll { overflow-x: auto; }
     table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
     th, td { text-align: right; padding: .5rem .6rem; border-bottom: 1px solid var(--rule); white-space: nowrap; }
@@ -86,7 +94,7 @@
     .legend .swatch { width: .7rem; height: .7rem; border-radius: 2px; align-self: center; }
     .legend .val { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--accent); }
     .legend .cap { font-weight: 600; color: var(--ink-faint); text-transform: uppercase; letter-spacing: .06em; font-size: .7rem; padding-bottom: .3rem; }
-    .keys { display: flex; gap: 1.25rem; font-size: .82rem; color: var(--ink-soft); margin: .4rem 0 0; }
+    .keys { display: flex; flex-wrap: wrap; gap: .5rem 1.25rem; font-size: .82rem; color: var(--ink-soft); margin: .4rem 0 0; }
     .keys span { display: flex; align-items: center; gap: .4rem; }
     .keys .dot { width: .65rem; height: .65rem; border-radius: 50%; }
 

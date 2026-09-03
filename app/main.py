@@ -116,6 +116,7 @@ def compare(
         shown = wanted if len(wanted) > 1 else []
 
         sections = []
+        highlights = []
         for module in modules:
             # The year the reader pinned, if this area has it; otherwise the
             # newest this area holds. Areas end in different years, so one
@@ -139,6 +140,12 @@ def compare(
                     subject=getattr(module, "SUBJECT", module.TITLE.lower()),
                     series_ends=series_ends(conn, module.TABLE),
                 )
+                # Only a snapshot, and only with something to contrast: a
+                # trend already tells its own story in the lines, and a
+                # highlight naming "the widest gap" needs more than one
+                # school to be a gap at all.
+                if len(chosen) > 1 and hasattr(module, "highlights"):
+                    highlights.extend(module.highlights(context))
 
             sections.append(
                 {
@@ -161,5 +168,6 @@ def compare(
             "schools": chosen,
             "sections": sections,
             "years": shown,
+            "highlights": highlights,
         },
     )

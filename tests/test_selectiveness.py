@@ -148,3 +148,17 @@ def test_charts_are_none_rather_than_empty_when_there_is_nothing_to_draw(conn, y
     context = selectiveness.load(conn, [], year)
     assert context["rates_chart"] is None
     assert context["volume_chart"] is None
+
+
+def test_highlights_names_the_lowest_admit_rate(conn, year):
+    """Caltech is the most selective school in this sample."""
+    context = selectiveness.load(conn, all_schools(conn), year)
+    lines = selectiveness.highlights(context)
+    assert lines
+    assert "Caltech" in lines[0]
+
+
+def test_highlights_is_empty_for_a_single_school(conn, year):
+    schools = selected(conn, [CALTECH])
+    context = selectiveness.load(conn, schools, year)
+    assert selectiveness.highlights(context) == []
