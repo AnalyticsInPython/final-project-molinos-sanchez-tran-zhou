@@ -186,7 +186,7 @@
         <span data-stage="choosing">Once they are saved you can enter what each one offered you,
         and we will set it against what that school usually charges families at your income.</span>
       </p>
-      {% with picker_colors = false, picker_max = 5 %}
+      {% with picker_kind = "school", picker_colors = false, picker_max = 5 %}
         {% include "_school_picker.html" %}
       {% endwith %}
     </section>

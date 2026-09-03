@@ -1,30 +1,35 @@
 {#
-  The searchable school picker, shared by the comparison screen and the sign-up
-  questionnaire. Both need "type a name, add it, take it out of the list" and a
+  A searchable token picker. Used three times: schools on the comparison screen,
+  schools again on the sign-up questionnaire, and areas on the comparison
+  screen. All three need "type a name, add it, take it out of the list", and a
   native multi-select stops working long before 6,000 institutions.
 
   Include it with:
 
-      {% with picker_colors = true, picker_max = 5 %}
+      {% with picker_kind = "school", picker_colors = true, picker_max = 5 %}
         {% include "_school_picker.html" %}
       {% endwith %}
 
-  `picker_colors` adds the per-school colour swatch and the clash warning, which
-  the comparison needs and a sign-up form does not. `picker_max` caps the
-  selection.
+  `picker_kind` is the form field name and decides which list is offered —
+  "school" or "area". `picker_colors` adds the per-school colour swatch and the
+  clash warning, which the comparison needs and a sign-up form does not.
+  `picker_max` caps the selection.
 
-  It emits hidden `school` inputs (and index-matched `color` inputs when
-  colours are on), and dispatches a bubbling `schools-changed` event carrying
-  the current selection, so a page can react without reaching inside it.
+  It emits hidden inputs named for `picker_kind` (plus index-matched `color`
+  inputs when colours are on), and dispatches a bubbling `<kind>s-changed`
+  event carrying the current selection, so a page can react without reaching
+  inside it.
 #}
-<div class="combo" data-school-picker
+{% set kind = picker_kind | default("school") %}
+<div class="combo" data-token-picker
+     data-kind="{{ kind }}"
      data-max="{{ picker_max | default(5) }}"
      data-colors="{{ 'yes' if picker_colors else 'no' }}">
   <input class="field" type="text" data-role="search"
-         placeholder="Search for a school&hellip;" autocomplete="off"
+         placeholder="{{ 'Search for a school\u2026' if kind == 'school' else 'Search areas\u2026' }}" autocomplete="off"
          role="combobox" aria-expanded="false" aria-autocomplete="list"
-         aria-label="Search for a school">
-  <ul class="menu" role="listbox" aria-label="Schools" data-role="menu" hidden></ul>
+         aria-label="Search">
+  <ul class="menu" role="listbox" data-role="menu" hidden></ul>
 </div>
 
 <ul class="chips" data-role="chips"></ul>
@@ -38,8 +43,12 @@
 {# school and color are emitted here as index-matched pairs. #}
 <div data-role="fields"></div>
 
-<script type="application/json" data-role="school-data">
-  [{% for s in schools %}{"unitid": {{ s.unitid }}, "name": {{ s.name | tojson }}, "short": {{ s.short | tojson }}, "color": {{ s.color | tojson }}}{{ "," if not loop.last }}{% endfor %}]
+<script type="application/json" data-role="item-data">
+{%- if kind == "school" -%}
+  [{% for s in schools %}{"id": {{ s.unitid }}, "name": {{ s.name | tojson }}, "short": {{ s.short | tojson }}, "color": {{ s.color | tojson }}}{{ "," if not loop.last }}{% endfor %}]
+{%- else -%}
+  [{% for a in areas %}{"id": {{ a.KEY | tojson }}, "name": {{ a.TITLE | tojson }}, "short": {{ a.TITLE | tojson }}, "icon": {{ a.ICON | tojson }}}{{ "," if not loop.last }}{% endfor %}]
+{%- endif -%}
 </script>
 
 <script>
@@ -47,7 +56,7 @@
   "use strict";
 
   const root = document.currentScript.closest("form, body").querySelector(
-    "[data-school-picker]:not([data-ready])"
+    "[data-token-picker]:not([data-ready])"
   );
   if (!root) return;
   root.setAttribute("data-ready", "");
@@ -55,11 +64,13 @@
   const scope = root.parentElement;
   const pick = (role) => scope.querySelector(`[data-role="${role}"]`);
 
-  const SCHOOLS = JSON.parse(pick("school-data").textContent);
+  const ITEMS = JSON.parse(pick("item-data").textContent);
+  const KIND = root.dataset.kind || "school";
   const MAX = Number(root.dataset.max) || 5;
   const WITH_COLORS = root.dataset.colors === "yes";
 
   const search = root.querySelector('[data-role="search"]');
+  search.dataset.idle = search.placeholder;
   const menu = root.querySelector('[data-role="menu"]');
   const chipList = pick("chips");
   const fields = pick("fields");
@@ -77,6 +88,9 @@
 
   let matches = [];
   let active = -1;
+  // Set while focus is moved programmatically, so the focus handler does not
+  // treat it as the user asking for the list.
+  let refocusing = false;
 
   /* --- colour clashes ------------------------------------------------ */
 
@@ -123,7 +137,7 @@
   /* --- the selection ------------------------------------------------- */
 
   function taken() {
-    return new Set(chosen.map((s) => s.unitid));
+    return new Set(chosen.map((s) => s.id));
   }
 
   // Already-selected schools are gone from the list, so reopening it offers
@@ -131,11 +145,27 @@
   function available(query) {
     const q = query.trim().toLowerCase();
     const already = taken();
-    return SCHOOLS.filter(
+    return ITEMS.filter(
       (s) =>
-        !already.has(s.unitid) &&
+        !already.has(s.id) &&
         (!q || s.name.toLowerCase().includes(q) || s.short.toLowerCase().includes(q))
     );
+  }
+
+  // Schools are told apart by colour, areas by their icon. Same slot either way.
+  function marker(item) {
+    if (item.icon) {
+      const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      svg.setAttribute("viewBox", "0 0 24 24");
+      svg.setAttribute("class", "icon");
+      svg.setAttribute("aria-hidden", "true");
+      svg.innerHTML = item.icon;
+      return svg;
+    }
+    const dot = document.createElement("span");
+    dot.className = "chip";
+    dot.style.background = item.color;
+    return dot;
   }
 
   function hidden(name, value) {
@@ -148,13 +178,13 @@
 
   function notify() {
     root.dispatchEvent(
-      new CustomEvent("schools-changed", { bubbles: true, detail: { chosen } })
+      new CustomEvent(KIND + "s-changed", { bubbles: true, detail: { chosen } })
     );
   }
 
-  function add(unitid) {
-    if (chosen.length >= MAX || taken().has(unitid)) return;
-    const school = SCHOOLS.find((s) => s.unitid === unitid);
+  function add(id) {
+    if (chosen.length >= MAX || taken().has(id)) return;
+    const school = ITEMS.find((s) => s.id === id);
     if (!school) return;
 
     chosen.push({ ...school });
@@ -171,12 +201,17 @@
     }
   }
 
-  function remove(unitid) {
-    const i = chosen.findIndex((s) => s.unitid === unitid);
+  function remove(id) {
+    const i = chosen.findIndex((s) => s.id === id);
     if (i < 0) return;
     chosen.splice(i, 1);
     render();
+    // Focus without opening: taking a school off the list is not a request to
+    // add another one, and having the menu spring up over the chips reads as
+    // the app fighting you.
+    refocusing = true;
     search.focus();
+    refocusing = false;
   }
 
   function render() {
@@ -203,6 +238,8 @@
         row.append(swatch);
       }
 
+      if (!WITH_COLORS) row.append(marker(school));
+
       const name = document.createElement("span");
       name.className = "name";
       name.textContent = school.name;
@@ -213,12 +250,12 @@
       drop.textContent = "×";
       drop.setAttribute("aria-label", "Remove " + school.short);
       drop.title = "Remove " + school.short;
-      drop.addEventListener("click", () => remove(school.unitid));
+      drop.addEventListener("click", () => remove(school.id));
 
       row.append(name, drop);
       chipList.append(row);
 
-      fields.append(hidden("school", school.unitid));
+      fields.append(hidden(KIND, school.id));
       if (colorField) fields.append(colorField);
 
       chipEls.push(row);
@@ -226,10 +263,10 @@
 
     const full = chosen.length >= MAX;
     search.disabled = full;
-    search.placeholder = full ? "That is the maximum" : "Search for a school…";
+    search.placeholder = full ? "That is the maximum" : search.dataset.idle;
     count.textContent = chosen.length
       ? chosen.length + " of " + MAX + " selected."
-      : count.dataset.empty || "Pick at least one school.";
+      : count.dataset.empty || "Pick at least one.";
 
     paintClashes();
     notify();
@@ -254,16 +291,19 @@
         row.setAttribute("role", "option");
         row.setAttribute("aria-selected", String(i === active));
 
-        const dot = document.createElement("span");
-        dot.className = "chip";
-        dot.style.background = school.color;
-
-        row.append(dot, document.createTextNode(school.name));
+        row.append(marker(school), document.createTextNode(school.name));
+        row.addEventListener("mousemove", () => {
+          if (active === i) return;
+          active = i;
+          [...menu.children].forEach((el, n) =>
+            el.setAttribute("aria-selected", String(n === i))
+          );
+        });
         // mousedown, not click: the input blurs first and would close the menu
         // out from under the pointer.
         row.addEventListener("mousedown", (event) => {
           event.preventDefault();
-          add(school.unitid);
+          add(school.id);
         });
         menu.append(row);
       });
@@ -290,7 +330,9 @@
   }
 
   search.addEventListener("input", openMenu);
-  search.addEventListener("focus", openMenu);
+  search.addEventListener("focus", () => {
+    if (!refocusing) openMenu();
+  });
   search.addEventListener("blur", closeMenu);
   search.addEventListener("keydown", (event) => {
     if (event.key === "ArrowDown") { event.preventDefault(); move(1); }
@@ -298,7 +340,7 @@
     else if (event.key === "Enter") {
       // Never let a stray Enter submit the form from the search box.
       event.preventDefault();
-      if (!menu.hidden && active >= 0 && matches[active]) add(matches[active].unitid);
+      if (!menu.hidden && active >= 0 && matches[active]) add(matches[active].id);
     } else if (event.key === "Escape") {
       closeMenu();
     }
