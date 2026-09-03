@@ -255,9 +255,8 @@ def figure(cut: Cut, rows: list[dict], emphasis: int | None) -> dict | None:
             if own is not None:
                 diff = (own - row["total"]) * 100
                 sign = "+" if diff >= 0 else "−"
-                text = (
-                    f"{labels[emphasis]} {pct(own)} vs {pct(row['total'])} ({sign}{abs(diff):.1f})"
-                )
+                distance = f"{sign}{abs(diff):.{cut.places}f}"
+                text = f"{labels[emphasis]} {pct(own)} vs {pct(row['total'])} ({distance})"
             elif emphasis in row["suppressed"]:
                 text = f"{labels[emphasis]}: under {MIN_COHORT} {cut.count_noun}"
             else:
