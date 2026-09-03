@@ -23,7 +23,7 @@ import sqlite3
 import polars as pl
 
 from app.format import money
-from app.notices import coverage_notices
+from app.notices import Notice, coverage_notices
 from app.schools import School
 from app.trend import chart as line_chart
 
@@ -83,6 +83,18 @@ QUERY = """
 
 # Missing and not-applicable. Any other negative is a real price.
 SENTINELS = [-1, -2, -3]
+
+# How much published cost of attendance has risen since a given year, read from
+# the data rather than assumed. The freshness notice can then say how far off a
+# stale net price is likely to be, instead of only how old it is — "five years
+# old" tells a family the figure is not current, and "prices have risen about
+# 8% since" tells them what to do about it.
+INFLATION_QUERY = """
+    SELECT year, AVG(tuition_fees_ft) AS sticker
+    FROM academic_year_tuition
+    WHERE level_of_study = 1 AND tuition_type = 3 AND tuition_fees_ft > 0
+    GROUP BY year
+"""
 
 # Every year at once, for the trend view.
 TREND_QUERY = """
@@ -145,8 +157,44 @@ def load(conn: sqlite3.Connection, schools: list[School], year: int) -> dict:
         "headers": BAND_HEADERS,
         "range_chart": _range_chart(rows),
         "chart": _chart(rows),
-        "notices": coverage_notices(missing_all, missing_some, subject=SUBJECT),
+        "notices": (
+            coverage_notices(missing_all, missing_some, subject=SUBJECT)
+            + [n for n in [_drift_notice(conn, year)] if n]
+        ),
     }
+
+
+def _drift_notice(conn: sqlite3.Connection, year: int) -> Notice | None:
+    """How much costs have risen since the year being shown.
+
+    Net price stops at 2021 while published cost of attendance runs to 2023, so
+    the later years of one series can size the staleness of the other. This
+    reports only observed growth and does not extrapolate past the last year we
+    have — a projection would be the most confident-looking number on the page
+    and the least supported.
+    """
+    prices = {
+        int(r["year"]): r["sticker"]
+        for r in pl.read_database(INFLATION_QUERY, conn).to_dicts()
+        if r["sticker"]
+    }
+    later = [y for y in prices if y > year]
+    if not later or year not in prices:
+        return None
+
+    newest = max(later)
+    growth = prices[newest] / prices[year] - 1
+    if growth < 0.02:
+        return None
+
+    return Notice(
+        "info",
+        f"Published costs at these schools rose about {growth * 100:.0f}% between "
+        f"{year} and {newest}, the last year we have for them, and have kept rising "
+        f"since. A {year} net price is likely to understate what a family pays now by "
+        f"at least that much — more at the higher income bands, where the figures below "
+        f"have been climbing fastest.",
+    )
 
 
 def _range_chart(rows: list[dict]) -> dict | None:

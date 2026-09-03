@@ -5,16 +5,22 @@ has. IPEDS says what families at each income band paid on average; the offer
 letter says what *this* family was asked for. Neither number alone answers
 "is this a good offer".
 
-**The comparison is on discount rate, not dollars, and that is the whole
-trick.** Published net price stops at 2021 and an offer letter is for next
-year, so comparing the two in dollars compares 2021 money with 2026 money and
-reports inflation as generosity. Sticker price and net price inflate together,
-so the share of sticker a school forgives is far steadier across those years
-than either figure is on its own. A school that discounted 78% of sticker for
-this income band in 2021 is very likely still discounting near 78%, even
-though both dollar amounts have moved.
+**The comparison is on discount rate, not dollars.** Published net price stops
+at 2021 and an offer letter is for next year, so comparing the two in dollars
+compares 2021 money with 2026 money and reports inflation as generosity.
+Sticker and net inflate together, so the share of sticker a school forgives is
+much steadier than either figure alone.
 
-It is still an estimate, and the caller is expected to say so.
+**Steadier, not stable, and the difference is measurable.** Checked against
+2015-2021 across this sample: net price at the lowest income band moved 37% and
+at the highest 13%, while the discount rate at those bands drifted 88.3% to
+93.0% and 32.6% to 36.6% — roughly 0.7 points a year, consistently upward as
+schools have become more generous. So over the five-year gap this comparison
+spans, expect the published rate to understate a school's current generosity by
+about three or four points. That is small next to the dollar error it avoids,
+and it is not nothing: a verdict inside a few points of the threshold should be
+read as "about typical" rather than as a finding. `verdict` uses a five-point
+band for exactly that reason.
 """
 
 import sqlite3

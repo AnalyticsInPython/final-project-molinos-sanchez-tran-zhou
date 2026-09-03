@@ -7,6 +7,7 @@ family's income, and whether it does better than the schools it resembles.
 
 - [PROPOSAL.md](PROPOSAL.md) — the full proposal, data sources and known limitations
 - [ROADMAP.md](ROADMAP.md) — what is built, what is next, and what we decided against
+- [METRICS-REVIEW.md](METRICS-REVIEW.md) — whether the numbers we show are the ones worth knowing
 - [SCOPE.md](SCOPE.md) — where the seven comparison areas landed, and **three open questions
   the group needs to answer** before we build screens
 

@@ -8,6 +8,9 @@ down with its reason than deleted, because the same idea comes back.
 
 ---
 
+See also [METRICS-REVIEW.md](METRICS-REVIEW.md) — whether the numbers we show
+are the ones worth knowing, checked against the data rather than assumed.
+
 ## Built
 
 - **Ingest** — fourteen IPEDS endpoints, a year range each, into a gitignored SQLite
@@ -22,7 +25,8 @@ down with its reason than deleted, because the same idea comes back.
   one year pins it, two or more draw a trend across a window shared by every area.
 - **Data-quality notices** — how old the figures are and which schools report nothing,
   stated above the charts rather than in a footnote.
-- **Areas** — student financial aid, selectiveness.
+- **Areas** — student financial aid, selectiveness, retention and graduation, after
+  graduation (earnings and debt), enrollment, athletics, institution characteristics.
 - **Profiles** *(Rebecca, PR #4, unmerged)* — username-only, cookie, shortlist.
 - **Questionnaire** *(branch `questionnaire`, unmerged)* — sign-up questions gated by
   whether someone is pre- or post-application, and an offer comparison that prices a
@@ -142,10 +146,11 @@ pattern are identical to what `import_ipeds.py` already does.
 
 Not rejected, just not now.
 
-- **Post-graduation earnings.** College Scorecard, served by the *same* Urban API, so
-  the join is `unitid` like everything else. Blocked on coverage: only 2018 returns
-  rows, and `count_not_working` is null so a placement rate cannot be computed at all.
-  Median earnings at 6/8/10 years are real and usable as a labelled single-year figure.
+- ~~**Post-graduation earnings** via the Urban API.~~ **Built, by a different route.**
+  The Urban path is the wrong one — it serves a single 2018 snapshot. `app/areas/outcomes.py`
+  calls the College Scorecard API directly instead and gets current pooled cohorts. The
+  placement-rate finding still stands: `count_not_working` is null, so no such rate can be
+  computed from any route.
 - **Loan default rate.** `scorecard/default`, one row per school, near-free to add.
 - **Athletics deficit / institutional subsidy.** Not in EADA, not in IPEDS, not in any
   federal collection. It lives only in a university's audited financial statements or its
