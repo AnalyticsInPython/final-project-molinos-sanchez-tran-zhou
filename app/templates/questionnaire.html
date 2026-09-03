@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+{% block title %}Create an account · Like for Like{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  "use strict";
+  // Stage decides which questions are worth asking. A student still deciding
+  // where to apply has no offer letter, and asking for one implies they are
+  // behind; a student holding offers has already taken the tests.
+  const staged = [...document.querySelectorAll("[data-stage]")];
+  function apply() {
+    const stage = document.querySelector("input[name=stage]:checked").value;
+    staged.forEach((el) => { el.hidden = el.dataset.stage !== stage; });
+  }
+  document.querySelectorAll("input[name=stage]").forEach((radio) =>
+    radio.addEventListener("change", apply)
+  );
+  apply();
+})();
+</script>
+{% endblock %}
+
+{% block nav %}
+  <nav class="topbar">
+    <div class="inner">
+      <a class="brand" href="/">Like for Like</a>
+      <a class="back" href="/profile">Already have a username?</a>
+    </div>
+  </nav>
+{% endblock %}
+
+{% block content %}
+  <h1>Create an account</h1>
+  <p class="lede">
+    Every answer below changes what the comparison shows you. All of them are optional
+    except a username, and you can change any of them later.
+  </p>
+
+  {% if error %}<p class="notice warn"><span class="notice-mark">&#9888;</span><span>{{ error }}</span></p>{% endif %}
+
+  <form action="/profile/new" method="post" class="quiz">
+
+    <section class="panel">
+      <h2 class="panel-title">Who you are</h2>
+      <p class="panel-hint">A username is all we ask for. There is no password &mdash; anyone who
+        knows your username can open this profile, so keep it to things you would not mind a
+        classmate seeing.</p>
+      <div class="field-row">
+        <label>Username
+          <input class="field" type="text" name="username" required
+                 placeholder="3&ndash;20 letters, numbers, - or _" autocomplete="off">
+        </label>
+        <label>Name <span class="opt">optional</span>
+          <input class="field" type="text" name="display_name" placeholder="What we should call you">
+        </label>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2 class="panel-title">Where you are in this</h2>
+      <p class="panel-hint">
+        This decides what we ask next, and what leads the comparison. Someone still building a
+        list needs to know where they stand; someone holding offers needs to know whether the
+        one in front of them is any good.
+      </p>
+      <div class="stages">
+        {% for value, label in stages.items() %}
+          <label class="radio">
+            <input type="radio" name="stage" value="{{ value }}" {{ "checked" if loop.first }}>
+            {{ label }}
+          </label>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2 class="panel-title">Where you live</h2>
+      <p class="panel-hint">
+        This is the answer that moves the numbers most. A public university charges in-state and
+        out-of-state students very differently &mdash; Michigan is $17,193 against $55,097 for the
+        same year &mdash; so without your state we cannot tell you which price is yours.
+      </p>
+      <label class="narrow">Home state <span class="opt">optional</span>
+        <select class="field" name="home_state">
+          <option value="">Prefer not to say</option>
+          {% for code in states %}<option value="{{ code }}">{{ code }}</option>{% endfor %}
+        </select>
+      </label>
+    </section>
+
+    <section class="panel">
+      <h2 class="panel-title">What a year has to cost</h2>
+      <p class="panel-hint">
+        Net price is published by family income band. Pick yours and the comparison shows what
+        families like yours actually paid, instead of a sticker price almost nobody pays.
+      </p>
+      <label class="narrow">Family income <span class="opt">optional</span>
+        <select class="field" name="income_bracket">
+          <option value="">Prefer not to say</option>
+          {% for level, label in bands.items() %}<option value="{{ level }}">{{ label }}</option>{% endfor %}
+        </select>
+      </label>
+    </section>
+
+    <section class="panel" data-stage="applying">
+      <h2 class="panel-title">Your scores</h2>
+      <p class="panel-hint">
+        A test score can be set against each school's published 25th&ndash;75th percentile range,
+        so you can see where you sit. Bear in mind many schools went test-optional &mdash; at some,
+        a quarter of admitted students submitted a score at all.
+      </p>
+      <div class="field-row">
+        <label>SAT <span class="opt">400&ndash;1600</span>
+          <input class="field" type="number" name="sat" min="400" max="1600" step="10">
+        </label>
+        <label>ACT <span class="opt">1&ndash;36</span>
+          <input class="field" type="number" name="act" min="1" max="36">
+        </label>
+        <label>GPA <span class="opt">0&ndash;4.0</span>
+          <input class="field" type="number" name="gpa" min="0" max="4" step="0.01">
+        </label>
+      </div>
+      <p class="hint">
+        GPA is saved for your own reference only. IPEDS publishes no admitted GPA for any
+        institution, so there is nothing honest to compare it against.
+      </p>
+    </section>
+
+    <section class="panel">
+      <h2 class="panel-title">About you <span class="opt">optional</span></h2>
+      <p class="panel-hint">
+        Graduation rates are published broken out by race and by gender, and the gaps are real
+        &mdash; at Michigan, 82% of Black students finish against 96% of Asian students, behind a
+        93% headline. Answering lets us show you the rate for students like you rather than the
+        average. Skip this and you see the headline, which is the honest default.
+      </p>
+      <div class="field-row">
+        <label>Race <span class="opt">optional</span>
+          <select class="field" name="race">
+            <option value="">Prefer not to say</option>
+            {% for code, label in races.items() %}<option value="{{ code }}">{{ label }}</option>{% endfor %}
+          </select>
+        </label>
+        <label>Gender <span class="opt">optional</span>
+          <select class="field" name="gender">
+            <option value="">Prefer not to say</option>
+            {% for code, label in genders.items() %}<option value="{{ code }}">{{ label }}</option>{% endfor %}
+          </select>
+        </label>
+      </div>
+      <p class="hint">
+        These come from the categories the federal survey uses. They are narrower than people
+        are, and that limit is the survey's rather than a view about you.
+      </p>
+    </section>
+
+    <section class="panel">
+      <h2 class="panel-title">
+        <span data-stage="applying">Schools you are looking at</span>
+        <span data-stage="choosing">Schools that admitted you</span>
+        <span class="opt">optional</span>
+      </h2>
+      <p class="panel-hint">
+        Up to {{ max_shortlist | default(10) }}. You can add and remove them later from your
+        profile; this just saves retyping them.
+        <span data-stage="choosing">Once they are saved you can enter what each one offered you,
+        and we will set it against what that school usually charges families at your income.</span>
+      </p>
+      <select class="field tall" name="school" multiple size="8">
+        {% for school in schools %}<option value="{{ school.unitid }}">{{ school.name }}</option>{% endfor %}
+      </select>
+      <p class="hint">Hold &#8984; or Ctrl to pick more than one.</p>
+    </section>
+
+    <p class="hint" data-stage="choosing">
+      Next step, on your profile: enter each offer and see how it compares.
+    </p>
+
+    <button type="submit">Create account</button>
+  </form>
+{% endblock %}

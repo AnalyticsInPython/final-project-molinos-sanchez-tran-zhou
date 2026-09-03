@@ -2,13 +2,30 @@
 
 {% block nav %}
   <nav class="topbar">
-    <div class="inner"><a class="brand" href="/">Like for Like</a></div>
+    <div class="inner">
+      <a class="brand" href="/">Like for Like</a>
+      <span class="nav-actions">
+        {% if profile %}
+          <a class="back" href="/profile">Signed in as {{ profile.name }}</a>
+        {% else %}
+          <a class="back" href="/profile">Log in</a>
+          <a class="cta" href="/profile/new">Create an account</a>
+        {% endif %}
+      </span>
+    </div>
   </nav>
 {% endblock %}
 
 {% block content %}
   <h1>Like for Like</h1>
   <p class="lede">What a school actually costs at your family's income — not its sticker price.</p>
+  {% if profile and profile.shortlist %}
+    <p class="hint">
+      <a href="/compare?{% for u in profile.shortlist[:5] %}school={{ u }}{% if not loop.last %}&{% endif %}{% endfor %}">
+        Compare your {{ profile.shortlist | length }} saved school{{ "s" if profile.shortlist | length != 1 }} &rarr;
+      </a>
+    </p>
+  {% endif %}
 
   <form action="/compare" method="get" id="picker">
     <div class="picker-grid">

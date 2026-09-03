@@ -1,0 +1,223 @@
+{% extends "base.html" %}
+
+{% block nav %}
+  <nav class="topbar">
+    <div class="inner">
+      <a class="brand" href="/">Like for Like</a>
+      <a class="back" href="/">&larr; Back to schools</a>
+    </div>
+  </nav>
+{% endblock %}
+
+{% block content %}
+  {% if not profile %}
+    <h1>Start a profile</h1>
+    <p class="lede">
+      Save your scores, income bracket, and a shortlist of schools so you
+      don't have to re-enter them next time. No password — just a name.
+    </p>
+
+    {% if error %}<p class="hint warn">{{ error }}</p>{% endif %}
+
+    <form action="/profile" method="post" class="panel" style="max-width: 24rem;">
+      <label for="username" class="panel-title">Username</label>
+      <input class="field" id="username" name="username" type="text"
+             placeholder="e.g. jenny" autocomplete="off" required
+             pattern="[a-zA-Z0-9_-]{3,20}" title="3-20 letters, numbers, - or _">
+      <button type="submit" style="margin-top: 1rem;">Start</button>
+    </form>
+  {% else %}
+    <h1>Signed in as {{ profile.username }}</h1>
+    <p class="lede">Your scores and shortlist, saved to this browser.</p>
+
+    <section class="panel" style="margin-bottom: 1.5rem;">
+      <h2 class="panel-title">Scores &amp; income</h2>
+      <form action="/profile/scores" method="post">
+        <div class="picker-grid" style="grid-template-columns: 1fr 1fr 1fr;">
+          <div>
+            <label for="sat" class="hint">SAT (400&ndash;1600)</label>
+            <input class="field" id="sat" name="sat" type="number" min="400" max="1600"
+                   value="{{ profile.sat_score or '' }}">
+          </div>
+          <div>
+            <label for="act" class="hint">ACT (1&ndash;36)</label>
+            <input class="field" id="act" name="act" type="number" min="1" max="36"
+                   value="{{ profile.act_score or '' }}">
+          </div>
+          <div>
+            <label for="income_bracket" class="hint">Family income bracket</label>
+            <select class="field" id="income_bracket" name="income_bracket">
+              <option value="">Not set</option>
+              {% for n in range(1, 6) %}
+                <option value="{{ n }}" {% if profile.income_bracket == n %}selected{% endif %}>
+                  Bracket {{ n }}{% if n == 1 %} (lowest){% elif n == 5 %} (highest){% endif %}
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+        <button type="submit" style="margin-top: 1rem;">Save</button>
+      </form>
+      <p class="note">
+        Brackets match how IPEDS reports net price by income — exact dollar
+        boundaries aren't shown yet (see PROPOSAL.md).
+      </p>
+    </section>
+
+    <section class="panel" style="margin-bottom: 1.5rem;">
+      <h2 class="panel-title">About you</h2>
+      <p class="panel-hint">
+        These tailor what the comparison shows. Home state decides which tuition applies at a
+        public university; race and gender let outcome rates be shown for students like you
+        rather than the headline. Every one can be cleared again.
+      </p>
+      <form action="/profile/details" method="post">
+        <div class="field-row">
+          <label>Name
+            <input class="field" type="text" name="display_name" value="{{ profile.display_name or '' }}">
+          </label>
+          <label>Home state
+            <select class="field" name="home_state">
+              <option value="">Prefer not to say</option>
+              {% for code in states %}
+                <option value="{{ code }}" {{ "selected" if profile.home_state == code }}>{{ code }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label>GPA <span class="opt">not compared</span>
+            <input class="field" type="number" name="gpa" min="0" max="4" step="0.01"
+                   value="{{ profile.gpa if profile.gpa is not none else '' }}">
+          </label>
+        </div>
+        <div class="field-row" style="margin-top: 1rem;">
+          <label>Race
+            <select class="field" name="race">
+              <option value="">Prefer not to say</option>
+              {% for code, label in races.items() %}
+                <option value="{{ code }}" {{ "selected" if profile.race == code }}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label>Gender
+            <select class="field" name="gender">
+              <option value="">Prefer not to say</option>
+              {% for code, label in genders.items() %}
+                <option value="{{ code }}" {{ "selected" if profile.gender == code }}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label>Where you are
+            <select class="field" name="stage">
+              <option value="">Not sure yet</option>
+              {% for value, label in stages.items() %}
+                <option value="{{ value }}" {{ "selected" if profile.stage == value }}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </label>
+        </div>
+        <p style="margin-top: 1rem;"><button type="submit">Save</button></p>
+      </form>
+    </section>
+
+    {% if profile.stage == "choosing" %}
+    <section class="panel">
+      <h2 class="panel-title">Your offers</h2>
+      <p class="panel-hint">
+        What each school actually asked you to pay, and what the package was made of. We set
+        your figure against the discount that school usually gives families at your income
+        band &mdash; comparing shares of sticker rather than dollars, because published net
+        price stops at {{ offer_year or 2021 }} and comparing old dollars to your offer would
+        report inflation as generosity.
+      </p>
+      {% for row in offer_rows %}
+        <form action="/profile/offers" method="post" class="offer">
+          <input type="hidden" name="unitid" value="{{ row.school.unitid }}">
+          <div class="field-row">
+            <label style="flex: 2 1 12rem;">
+              <span class="chip" style="background: {{ row.school.color }}"></span>
+              {{ row.school.short }}
+            </label>
+            <label>Your cost a year
+              <input class="field" type="text" name="net_offer" placeholder="$0"
+                     value="{{ row.offer.net_offer if row.offer and row.offer.net_offer is not none else '' }}">
+            </label>
+            <label>Of that, grants
+              <input class="field" type="text" name="grant_aid" placeholder="$0"
+                     value="{{ row.offer.grant_aid if row.offer and row.offer.grant_aid is not none else '' }}">
+            </label>
+            <label>Of that, loans
+              <input class="field" type="text" name="loan_aid" placeholder="$0"
+                     value="{{ row.offer.loan_aid if row.offer and row.offer.loan_aid is not none else '' }}">
+            </label>
+            <label style="flex: 0 0 auto; justify-content: flex-end;">
+              <button type="submit">Save</button>
+            </label>
+          </div>
+          {% if row.comparison %}
+            <p class="hint {{ 'warn' if row.comparison.gap is not none and row.comparison.gap < -0.05 }}">
+              Sticker is {{ row.comparison.sticker | money }}{{ " (in-state)" if row.comparison.in_state }}.
+              Your offer forgives {{ row.comparison.your_discount | percent(0) }}{% if row.comparison.typical_discount is not none %},
+              against {{ row.comparison.typical_discount | percent(0) }} typical for your income band
+              in {{ row.comparison.typical_year }}{% endif %}.
+              <strong>{{ row.comparison.verdict }}</strong>
+              {% if row.offer and row.offer.gift_share is not none %}
+                Grants are {{ row.offer.gift_share | percent(0) }} of the package &mdash; the rest is
+                borrowed.
+              {% endif %}
+            </p>
+          {% endif %}
+        </form>
+      {% else %}
+        <p class="hint">Add schools to your shortlist below, then enter what each one offered.</p>
+      {% endfor %}
+    </section>
+
+    {% endif %}
+
+    <section class="panel">
+      <h2 class="panel-title">Your shortlist</h2>
+      {% if not shortlist %}
+        <p class="hint">No schools saved yet.</p>
+      {% else %}
+        <ul class="chips">
+          {% for school in shortlist %}
+            <li>
+              <span class="chip" style="background: {{ school.color }};"></span>
+              <span class="name">{{ school.name }}</span>
+              <form action="/profile/schools/{{ school.unitid }}/remove" method="post">
+                <button type="submit" class="drop" aria-label="Remove {{ school.short }}">&times;</button>
+              </form>
+            </li>
+          {% endfor %}
+        </ul>
+        <p class="hint">
+          {{ shortlist | length }} of {{ max_shortlist }} saved.
+          {% if shortlist | length > 1 %}
+            <a href="/compare?{% for s in shortlist[:5] %}school={{ s.unitid }}&color={{ s.color | urlencode }}{% if not loop.last %}&{% endif %}{% endfor %}">
+              Compare your saved schools &rarr;
+            </a>
+          {% endif %}
+        </p>
+      {% endif %}
+
+      {% set shortlist_ids = shortlist | map(attribute="unitid") | list %}
+      {% if shortlist | length < max_shortlist %}
+        <form action="/profile/schools" method="post" class="picker-grid" style="grid-template-columns: 1fr auto; margin-top: 1rem;">
+          <select class="field" name="unitid" required>
+            <option value="" disabled selected>Add a school&hellip;</option>
+            {% for school in all_schools if school.unitid not in shortlist_ids %}
+              <option value="{{ school.unitid }}">{{ school.name }}</option>
+            {% endfor %}
+          </select>
+          <button type="submit">Add</button>
+        </form>
+      {% endif %}
+    </section>
+
+    <form action="/profile/logout" method="post">
+      <button type="submit" style="background: none; color: var(--ink-soft); font-weight: 500;">
+        Sign out
+      </button>
+    </form>
+  {% endif %}
+{% endblock %}
