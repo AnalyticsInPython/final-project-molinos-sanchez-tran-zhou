@@ -97,9 +97,10 @@
       <tr>
         <th scope="row">Location</th>
         {% for row in context.rows %}
-          <td>
+          <td class="stack">
             {% if row.city and row.state %}{{ row.city }}, {{ row.state }}
             {% else %}<span class="missing">&mdash;</span>{% endif %}
+            {% if row.directory_is_stale %}<span class="sub">IPEDS {{ row.directory_year }}</span>{% endif %}
           </td>
         {% endfor %}
       </tr>
@@ -117,7 +118,12 @@
       </tr>
       <tr>
         <th scope="row">Calendar</th>
-        {% for row in context.rows %}<td>{{ row.calendar or "—" }}</td>{% endfor %}
+        {% for row in context.rows %}
+          <td class="stack">
+            {{ row.calendar or "—" }}
+            {% if row.characteristics_is_stale %}<span class="sub">IPEDS {{ row.characteristics_year }}</span>{% endif %}
+          </td>
+        {% endfor %}
       </tr>
       <tr>
         <th scope="row">Student : faculty</th>
@@ -132,7 +138,9 @@
         <th scope="row">Housing</th>
         {% for row in context.rows %}
           <td>
-            {% if row.housing %}
+            {% if row.housing is none %}
+              <span class="missing" title="Not reported">&mdash;</span>
+            {% elif row.housing %}
               Yes{% if row.dormitory_capacity %} ({{ "{:,}".format(row.dormitory_capacity) }} beds){% endif %}
             {% else %}
               No
@@ -163,6 +171,9 @@
 </div>
 
 <p class="note">
+  A location or calendar marked <strong>(IPEDS YYYY)</strong> is that school's most recent
+  report, not this year's &mdash; IPEDS has not finished publishing everyone's newest year yet,
+  and these facts rarely change year to year.
   <strong>Setting</strong> is NCES's locale for the school's own address, not its metro area
   &mdash; Cambridge, MA reads as a midsize city even though it sits inside greater Boston.
   <strong>Student:faculty ratio</strong> counts every instructional faculty member against

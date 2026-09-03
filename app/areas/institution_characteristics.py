@@ -38,19 +38,44 @@ total awards, not the count, so five schools sit on the same scale.
 
 **Top fields runs on its own year, decoupled from everything else on the
 page.** `directory`, `institutional_characteristics` and `student_faculty_ratio`
-share one range (2021-2024) and are filtered on the `year` this module is
-asked to render. `completions_cip_2` was ingested on a narrower window
-(2022-2023, see `scripts/import_ipeds.py`) and does not line up with that
-range — asking it for, say, 2024 would silently return nothing. It always
-shows its own newest year instead, labelled separately in the template,
-rather than going blank whenever the reference table's year outruns it.
+share one range (2021-2024). `completions_cip_2` was ingested on a narrower
+window (2022-2023, see `scripts/import_ipeds.py`) and does not line up with
+that range — asking it for, say, 2024 would silently return nothing. It
+always shows its own newest year instead, labelled separately in the
+template, rather than going blank whenever the reference table's year
+outruns it.
+
+**Everything else backfills to each school's own most recent good year,
+rather than going blank.** IPEDS has not finished filling in the newest
+years of `directory` and `institutional_characteristics` — checked directly
+against this sample: `directory` reports 25/25 schools in 2021-2022, 18/25 in
+2023, 12/25 in 2024; `institutional_characteristics` reports 25/25 in every
+year except 2023, where it drops to 17/25. A row that exists but carries no
+city (or no calendar system) is IPEDS's placeholder for "not received yet,"
+not a school without a location.
+
+The considered alternative was pulling a second, non-IPEDS source — a
+university's street address does not stop being true because a federal
+survey is running behind. Rejected: every one of these 25 schools already
+has a complete, IPEDS-sourced row in 2021 or 2022 (checked: none has zero
+good years), so a second source would be re-deriving facts already sitting
+in this database, on a classification scheme (control type, locale) that
+would not agree with IPEDS's own by construction. Backfilling to the same
+school's nearest earlier good year keeps one source of truth and costs
+nothing when a table is fully current, which is most of them, most years.
+
+Labelled, not silent: a school shown from an earlier year gets a small
+`(IPEDS YYYY)` note next to the affected fields, and the page-level notice
+says so before any table is read. Silently substituting a 2022 fact for a
+2024 one, with no mark, is the mistake this module's own coverage-notice
+work exists to prevent everywhere else.
 """
 
 import sqlite3
 
 import polars as pl
 
-from app.notices import coverage_notices
+from app.notices import Notice, coverage_notices
 from app.schools import School
 
 KEY = "institution_characteristics"
@@ -117,6 +142,15 @@ RELIGIOUS = {
 }
 NOT_RELIGIOUS = -2
 
+# IPEDS's usual missing/not-applicable sentinels. `oncampus_housing` in this
+# sample only ever takes the values 1 (yes) or -1 (not reported) — no school
+# here reports 0 — so `== 1` alone silently reads -1 as "no". Caught by 2024,
+# where four of these 25 schools report -1 for both `oncampus_housing` and
+# `dormitory_capacity` while every other field on the same row is real data;
+# treating -1 as false rendered Caltech, MIT and Stanford as having no
+# on-campus housing, which is absurd on its face for any of them.
+SENTINELS = {-1, -2, -3}
+
 # The federal CIP taxonomy's 2-digit families, by the numeric prefix on
 # `cipcode` (110000 -> family 11). Stable and government-standard, so an
 # unmapped family is more likely a data-widening event than a typo — it
@@ -167,24 +201,34 @@ CIP_FAMILY = {
 # of them). Neither code is guaranteed to be the one a year past 2023 uses.
 TOTAL_CIPS = {99, 990000}
 
-# The year filter is not optional: `directory`, `institutional_characteristics`
-# and `student_faculty_ratio` now hold 2021-2024. `{year}` is interpolated
-# through int(), so it cannot carry anything but a number.
+# No `{year}` filter: these three back off to a school's most recent good
+# year when the requested one is not yet reported, so each fetches every
+# year and `_by_unitid_backfilled` picks per school. The `WHERE` clause is
+# what "good" means for that table — the one column that stands for "this
+# row has real data," not IPEDS's placeholder for "not received yet."
 DIRECTORY_QUERY = """
-    SELECT unitid, city, state_abbr, url_school, inst_control, urban_centric_locale,
-           inst_size, latitude, longitude
+    SELECT unitid, year, city, state_abbr, url_school, inst_control,
+           urban_centric_locale, inst_size, latitude, longitude
     FROM directory
-    WHERE year = {year}
+    WHERE city IS NOT NULL
 """
 
 CHARACTERISTICS_QUERY = """
-    SELECT unitid, calendar_system, oncampus_housing, dormitory_capacity, religious_affiliation
+    SELECT unitid, year, calendar_system, oncampus_housing, dormitory_capacity,
+           religious_affiliation
     FROM institutional_characteristics
-    WHERE year = {year}
+    WHERE calendar_system IS NOT NULL
 """
 
-# No `{year}` filter — completions_cip_2 runs on its own window and always
-# shows its own newest year. See the module docstring.
+RATIO_QUERY = """
+    SELECT unitid, year, student_faculty_ratio
+    FROM student_faculty_ratio
+    WHERE student_faculty_ratio IS NOT NULL
+"""
+
+# `completions_cip_2` runs on its own window (see the module docstring) and
+# always shows its own newest year, so it keeps a `{year}` filter rather than
+# backfilling like the three above.
 FIELDS_QUERY = """
     SELECT unitid, cipcode, SUM(awards) AS awards
     FROM completions_cip_2
@@ -192,24 +236,17 @@ FIELDS_QUERY = """
     GROUP BY unitid, cipcode
 """
 
-RATIO_QUERY = """
-    SELECT unitid, student_faculty_ratio
-    FROM student_faculty_ratio
-    WHERE year = {year}
-"""
-
 
 def load(conn: sqlite3.Connection, schools: list[School], year: int) -> dict:
     """One reference row per school, plus a locator map and top fields of study."""
     unitids = [s.unitid for s in schools]
-    directory = _by_unitid(conn, DIRECTORY_QUERY.format(year=int(year)), unitids)
-    characteristics = _by_unitid(
-        conn, CHARACTERISTICS_QUERY.format(year=int(year)), unitids
-    )
+    directory = _by_unitid_backfilled(conn, DIRECTORY_QUERY, unitids, year)
+    characteristics = _by_unitid_backfilled(conn, CHARACTERISTICS_QUERY, unitids, year)
+    ratios = _by_unitid_backfilled(conn, RATIO_QUERY, unitids, year)
     fields, fields_year = _top_fields(conn, unitids)
-    ratios = _by_unitid(conn, RATIO_QUERY.format(year=int(year)), unitids)
 
     rows = []
+    backfilled = []
     for school in schools:
         d = directory.get(school.unitid, {})
         c = characteristics.get(school.unitid, {})
@@ -225,6 +262,23 @@ def load(conn: sqlite3.Connection, schools: list[School], year: int) -> dict:
             else None
         )
 
+        # None (not-reported) rather than False: `oncampus_housing` has no
+        # real 0 in this sample, only 1 or the sentinel -1, so treating the
+        # sentinel as falsy renders a school with unreported housing as
+        # having none. See SENTINELS's comment.
+        housing_raw = c.get("oncampus_housing")
+        housing = None if housing_raw in SENTINELS else housing_raw == 1
+        dormitory_capacity = c.get("dormitory_capacity")
+        if dormitory_capacity in SENTINELS:
+            dormitory_capacity = None
+
+        directory_year = d.get("year")
+        characteristics_year = c.get("year")
+        if directory_year is not None and directory_year != year:
+            backfilled.append((school, directory_year))
+        if characteristics_year is not None and characteristics_year != year:
+            backfilled.append((school, characteristics_year))
+
         rows.append(
             {
                 "school": school,
@@ -236,34 +290,60 @@ def load(conn: sqlite3.Connection, schools: list[School], year: int) -> dict:
                 "control": _label(CONTROL, d.get("inst_control")),
                 "locale": _label(LOCALE, d.get("urban_centric_locale")),
                 "size": _label(SIZE, d.get("inst_size")),
+                "directory_year": directory_year,
+                "directory_is_stale": directory_year is not None and directory_year != year,
                 "calendar": _label(CALENDAR, c.get("calendar_system")),
-                "housing": c.get("oncampus_housing") == 1,
-                "dormitory_capacity": c.get("dormitory_capacity"),
+                "housing": housing,
+                "dormitory_capacity": dormitory_capacity,
+                "characteristics_year": characteristics_year,
+                "characteristics_is_stale": (
+                    characteristics_year is not None and characteristics_year != year
+                ),
                 "religious": religious_label,
                 "student_faculty_ratio": r.get("student_faculty_ratio"),
                 "top_fields": f.get("top", []),
             }
         )
 
-    # A directory row that exists but carries no city is not coverage — IPEDS
-    # is still filling in the newest years (12 of 25 schools have a usable
-    # 2024 row as of this ingest, 25 of 25 for 2021-2022), and a dict with
-    # every value None is still a truthy dict, so this checks the one field
-    # that stands for "this row has real data" rather than mere presence.
+    # After backfilling, a school is only ever truly missing here if it has
+    # no good year at all for a given table — which none of these 25 do (see
+    # the module docstring), but a widened sample might.
     missing_all = [row["school"] for row in rows if not row["city"]]
-    missing_some = [
-        row["school"]
-        for row in rows
-        if row["city"]
-        and (not characteristics.get(row["school"].unitid) or not ratios.get(row["school"].unitid))
-    ]
 
     return {
         "rows": rows,
         "map": _map(rows),
         "fields_year": fields_year,
-        "notices": coverage_notices(missing_all, missing_some, subject=SUBJECT),
+        "notices": (
+            coverage_notices(missing_all, [], subject=SUBJECT)
+            + _staleness_notice(backfilled, year)
+        ),
     }
+
+
+def _staleness_notice(backfilled: list[tuple[School, int]], year: int) -> list[Notice]:
+    """One info notice naming which schools are shown from an earlier year.
+
+    A separate notice from `coverage_notices`, which is written for a school
+    reporting nothing at all — this one is for a school reporting *something*,
+    just not yet for `year`. Conflating the two would call a one-year-old
+    location a "gap in the federal data," which overstates it.
+    """
+    if not backfilled:
+        return []
+    names = sorted({school.short for school, _ in backfilled})
+    years = sorted({y for _, y in backfilled})
+    who = names[0] if len(names) == 1 else ", ".join(names[:-1]) + f" and {names[-1]}"
+    when = str(years[0]) if len(years) == 1 else f"{years[0]}–{years[-1]}"
+    return [
+        Notice(
+            "info",
+            f"IPEDS has not finished publishing {year} data for {who}. Fields marked "
+            f"(IPEDS {when}) below are that school's most recent report instead — "
+            f"still accurate for facts like location that rarely change, dated for "
+            f"anything that might not be.",
+        )
+    ]
 
 
 def _top_fields(conn: sqlite3.Connection, unitids: list[int]) -> tuple[dict[int, dict], int | None]:
@@ -333,23 +413,55 @@ def _map(rows: list[dict]) -> dict | None:
     }
 
 
-def _by_unitid(conn: sqlite3.Connection, query: str, unitids: list[int]) -> dict:
+def _by_unitid_backfilled(
+    conn: sqlite3.Connection, query: str, unitids: list[int], year: int
+) -> dict:
+    """Each school's row for `year`, or its nearest earlier good year instead.
+
+    `query` already filters to rows with real data (see the module docstring)
+    and carries no `{year}` — every good year for these schools comes back,
+    and this picks one per school: `year` itself if that school has it,
+    otherwise the closest year at or before it, otherwise (only possible if a
+    school's *first* good year is after `year`) the closest one after. The
+    chosen row keeps its own `year` column so the caller can tell whether it
+    backfilled and say so.
+    """
     frame = pl.read_database(query, conn).filter(pl.col("unitid").is_in(unitids))
-    return {r["unitid"]: r for r in frame.to_dicts()}
+
+    by_school: dict[int, list[dict]] = {}
+    for r in frame.to_dicts():
+        by_school.setdefault(r["unitid"], []).append(r)
+
+    result = {}
+    for unitid, group in by_school.items():
+        group.sort(key=lambda r: r["year"])
+        exact = next((r for r in group if r["year"] == year), None)
+        before = [r for r in group if r["year"] <= year]
+        result[unitid] = exact or (before[-1] if before else group[0])
+    return result
 
 
 # `directory` is the anchor table (TABLE, above), so a usable row there is
 # what "renderable" means: everything else in this area degrades gracefully
-# to a dash when absent, but no city means no location or map dot. `city IS
-# NOT NULL` matters more than it looks — IPEDS has not finished filling in
-# the newest years: 2021-2022 report all 25 schools, 2023 reports 18, 2024
-# reports 12. A row with every column null is still a row.
-COVERAGE_QUERY = "SELECT DISTINCT unitid, year FROM directory WHERE city IS NOT NULL"
-
-
+# to a dash when absent, but no city means no location or map dot. Every year
+# from a school's own first good one onward counts as covered, since that is
+# exactly what `_by_unitid_backfilled` can produce something for — a school
+# whose first good year is 2022 is not claimed as covered in 2021.
 def coverage(conn: sqlite3.Connection) -> set[tuple[int, int]]:
     """Every (unitid, year) this area can render, for the year picker."""
-    return {(row[0], row[1]) for row in conn.execute(COVERAGE_QUERY)}
+    good = conn.execute("SELECT unitid, year FROM directory WHERE city IS NOT NULL").fetchall()
+    all_years = {row[0] for row in conn.execute("SELECT DISTINCT year FROM directory")}
+
+    first_good: dict[int, int] = {}
+    for unitid, yr in good:
+        first_good[unitid] = min(first_good.get(unitid, yr), yr)
+
+    return {
+        (unitid, year)
+        for unitid, first in first_good.items()
+        for year in all_years
+        if year >= first
+    }
 
 
 def _label(table: dict, code: int | None) -> str | None:

@@ -25,6 +25,7 @@ BERKELEY = 110635
 GEORGETOWN = 131496
 BROWN = 217156
 PRINCETON = 186131
+STANFORD = 243744
 
 
 @pytest.fixture
@@ -38,25 +39,77 @@ def year(conn):
     return latest_year(conn, institution_characteristics.TABLE)
 
 
-def test_every_school_has_a_row(conn):
-    """25 rows always — the empty ones just carry dashes. Pinned to 2022,
-    IPEDS's last year with all 25 schools' directory fully reported; see
-    `test_a_partially_reported_year_is_flagged_not_hidden` for the newer,
-    gappier years."""
-    rows = institution_characteristics.load(conn, all_schools(conn), 2022)["rows"]
+def _row(conn, unitid: int, year: int) -> dict:
+    rows = institution_characteristics.load(conn, all_schools(conn), year)["rows"]
+    return next(row for row in rows if row["school"].unitid == unitid)
+
+
+def test_every_school_has_a_row(conn, year):
+    """25 rows, every one with a city — even at 2024, where only 12 of 25
+    schools have a directly-reported directory row. The other 13 backfill to
+    an earlier year rather than going blank; see the backfill tests below."""
+    rows = institution_characteristics.load(conn, all_schools(conn), year)["rows"]
     assert len(rows) == 25
     for row in rows:
         assert row["city"] and row["state"]
 
 
-def test_a_partially_reported_year_is_flagged_not_hidden(conn):
-    """IPEDS has not finished filling in 2024: only 12 of 25 schools in this
-    sample have a usable directory row. The gap must show up as a notice
-    naming the missing schools, not as blank cells nobody explains."""
+def test_a_gap_year_backfills_to_the_nearest_earlier_report(conn):
+    """Stanford has no usable 2024 directory row. Rather than a blank cell,
+    it should show 2022's location, marked as such."""
+    stanford = _row(conn, STANFORD, 2024)
+    assert stanford["city"] == "Stanford"
+    assert stanford["directory_year"] == 2022
+    assert stanford["directory_is_stale"] is True
+
+
+def test_an_exact_year_is_not_marked_stale(conn):
+    """Caltech has a full 2021 directory row — no backfill, no marker."""
+    caltech = _row(conn, CALTECH, 2021)
+    assert caltech["directory_year"] == 2021
+    assert caltech["directory_is_stale"] is False
+
+
+def test_unreported_housing_reads_as_a_dash_not_no(conn):
+    """`oncampus_housing` only ever takes 1 or the sentinel -1 in this sample
+    — no school reports a real 0. Caltech, MIT and Stanford all report -1 for
+    2024 while the rest of that row (calendar, control) is real data. Reading
+    the sentinel as falsy would render three residential research
+    universities as having no on-campus housing, which is absurd on its
+    face."""
+    for unitid in (CALTECH, 166683, STANFORD):
+        row = _row(conn, unitid, 2024)
+        assert row["housing"] is None
+        assert row["dormitory_capacity"] is None
+
+
+def test_reported_housing_still_reads_true_or_false(conn):
+    """The sentinel fix must not swallow the real signal along with it."""
+    caltech = _row(conn, CALTECH, 2021)
+    assert caltech["housing"] is True
+    assert caltech["dormitory_capacity"] == 1572
+
+
+def test_directory_and_characteristics_backfill_independently(conn):
+    """The two source tables miss different years for different schools —
+    Caltech's `institutional_characteristics` has no 2023 row even though its
+    `directory` row that year is fine. Each field group should say so on its
+    own, not share one flag."""
+    caltech = _row(conn, CALTECH, 2023)
+    assert caltech["directory_year"] == 2023
+    assert caltech["directory_is_stale"] is False
+    assert caltech["characteristics_year"] == 2022
+    assert caltech["characteristics_is_stale"] is True
+
+
+def test_a_backfilled_year_produces_a_named_notice(conn):
+    """The reader has to be told which school and how old, not just that
+    something, somewhere, might be off."""
     result = institution_characteristics.load(conn, all_schools(conn), 2024)
-    assert len(result["rows"]) == 25
-    assert any(row["city"] is None for row in result["rows"])
-    assert result["notices"], "12/25 coverage in 2024 produced no notice"
+    assert result["notices"], "13/25 schools backfilled in 2024 produced no notice"
+    text = " ".join(n.text for n in result["notices"])
+    assert "Stanford" in text
+    assert "2022" in text
 
 
 def test_public_and_private_control_are_both_present(conn, year):
@@ -177,16 +230,26 @@ def test_caltechs_student_faculty_ratio_is_narrower_than_berkeleys(conn, year):
     assert rows[CALTECH]["student_faculty_ratio"] < rows[BERKELEY]["student_faculty_ratio"]
 
 
-def test_the_query_is_filtered_to_one_year(conn):
-    """`directory` now holds four years; an unfiltered query would return every
-    school four times over, and `_by_unitid` would silently pick whichever
-    row happened to come back last."""
+def test_requesting_different_years_gives_different_real_answers(conn):
+    """`directory` and friends now hold four years each; each requested year
+    should pick that year's own data (or the nearest earlier report), not
+    silently collapse to whichever row `_by_unitid_backfilled` saw last."""
     schools = all_schools(conn)
     a = institution_characteristics.load(conn, schools, 2021)["rows"]
     b = institution_characteristics.load(conn, schools, 2024)["rows"]
     ratios_2021 = [r["student_faculty_ratio"] for r in a]
     ratios_2024 = [r["student_faculty_ratio"] for r in b]
     assert ratios_2021 != ratios_2024
+
+
+def test_backfill_never_reaches_forward_past_the_requested_year(conn):
+    """A school's own first good year still bounds coverage (see `coverage`'s
+    docstring) — nothing here should ever show a *future* year's facts as if
+    they were the requested year's."""
+    pairs = sorted(institution_characteristics.coverage(conn))
+    for unitid, yr in (pairs[0], pairs[len(pairs) // 2], pairs[-1]):
+        row = _row(conn, unitid, yr)
+        assert row["directory_year"] is None or row["directory_year"] <= yr
 
 
 def test_coverage_never_exceeds_the_years_ingested(conn):
