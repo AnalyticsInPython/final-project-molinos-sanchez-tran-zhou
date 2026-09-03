@@ -18,6 +18,11 @@ The wording is deliberately careful about what a stale figure still supports.
 2021 net prices are a bad quote for 2026 and a perfectly good comparison
 between two schools, because the schools moved together. Saying "out of date"
 and stopping would throw away the part that still works.
+
+It is equally careful about who published the figure and whether a newer one
+could exist. The caller names the source, because most areas are IPEDS and
+After graduation is the College Scorecard, and blaming the wrong agency for a
+gap is a factual error on the page rather than a vague one.
 """
 
 from dataclasses import dataclass
@@ -59,12 +64,19 @@ def age_notice(
     *,
     subject: str,
     as_of: int | None = None,
+    source: str = "IPEDS",
     series_ends: bool = False,
+    single_release: bool = False,
 ) -> Notice | None:
     """How old these figures are, when that is old enough to matter.
 
     Silent inside the normal publication lag — a notice on every area every
     time is a notice nobody reads.
+
+    `source` is the agency that publishes this area, named by the caller.
+    Thirteen of the fourteen ingest tables are IPEDS, which is why that is the
+    default, but After graduation is the College Scorecard and athletics is
+    EADA, and a notice that credits IPEDS for either is wrong on its face.
 
     `series_ends` separates two situations that look identical on the page and
     are not. Net price genuinely stops at 2021: ask IPEDS for 2022 and it
@@ -74,6 +86,13 @@ def age_notice(
     is the best available, when a newer one exists, is worse than saying
     nothing — so the default is the honest, unflattering branch, and an area
     has to assert that its series has ended.
+
+    `single_release` is the third case, and the reason the second one is not
+    enough: After graduation has no series at all. Its table holds one year
+    because the Scorecard pools several entry cohorts into a single release,
+    not because an ingest stopped early and not because a survey wound down.
+    Checked after `series_ends`, so a one-year table with an empty year
+    recorded above it is still the survey saying it stops there.
     """
     if year is None:
         return Notice(
@@ -90,26 +109,41 @@ def age_notice(
         if age < STALE:
             return Notice(
                 "info",
-                f"These are {year} figures, the most recent IPEDS publishes for "
+                f"These are {year} figures, the most recent {source} publishes for "
                 f"{subject}. Current figures will have moved since.",
             )
         return Notice(
             "warn",
-            f"These are {year} figures — {age} years old, and the most recent IPEDS "
+            f"These are {year} figures — {age} years old, and the most recent {source} "
             f"publishes for {subject}. Do not read them as a quote for next year. "
             f"The comparison between these schools still holds, because they have all "
             f"moved since; the amounts have not.",
         )
 
+    if single_release:
+        if age < STALE:
+            return Notice(
+                "info",
+                f"These are {year} figures. {source} pools several entry cohorts into "
+                f"one release for {subject}; there is no newer year to load.",
+            )
+        return Notice(
+            "warn",
+            f"These are {year} figures — {age} years old. {source} pools several entry "
+            f"cohorts into one release for {subject}; there is no newer year to load. "
+            f"Read them as where each school's graduates stand, not as a quote for "
+            f"next year.",
+        )
+
     if age < STALE:
         return Notice(
             "info",
-            f"These are {year} figures. IPEDS publishes newer years for {subject} "
+            f"These are {year} figures. {source} publishes newer years for {subject} "
             f"that this build has not loaded yet.",
         )
     return Notice(
         "warn",
-        f"These are {year} figures — {age} years old. IPEDS publishes newer years "
+        f"These are {year} figures — {age} years old. {source} publishes newer years "
         f"for {subject} that this build has not loaded, so do not read these as a "
         f"quote for next year. The comparison between these schools still holds; "
         f"the amounts are out of date.",
@@ -169,12 +203,25 @@ def for_area(
     *,
     subject: str,
     as_of: int | None = None,
+    source: str = "IPEDS",
     series_ends: bool = False,
+    single_release: bool = False,
 ):
     """Everything an area needs to say, freshness first.
 
     Age comes first because it qualifies every number on the page, where a
     coverage gap qualifies one row.
+
+    `source`, `series_ends` and `single_release` are passed straight through
+    to `age_notice`; the route knows all three because it holds the area
+    module and the connection, and this function knows neither.
     """
-    age = age_notice(year, subject=subject, as_of=as_of, series_ends=series_ends)
+    age = age_notice(
+        year,
+        subject=subject,
+        as_of=as_of,
+        source=source,
+        series_ends=series_ends,
+        single_release=single_release,
+    )
     return ([age] if age else []) + list(coverage)

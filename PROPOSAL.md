@@ -15,6 +15,31 @@ whether it is better than the schools it resembles.**
 
 ---
 
+## What Shipped, and What Changed
+
+Everything below this section is kept as written on 2 Sep 2026. Three things changed in the
+building, and they should be read here rather than found by diffing the proposal against the
+code.
+
+- **Peer-group outcomes were not built,** for the reason this proposal already gives itself
+  under *Known Limitations*: across the 25 selective universities in `scripts/schools.py`,
+  graduation rates span 91–98% and retention 96–99%. There is no spread for a peer median to
+  measure anything against, and the stratified sample that would create one was out of scope.
+- **The analysis moved to reported cuts and computed gaps.** A cut redraws one area's metric
+  for one group beside everyone, from the same survey, rather than against a peer group we
+  assembled — the comparison is reported rather than invented. Beside it, the headline figure
+  in each area is one we compute and IPEDS does not publish: spread (financial aid), yield
+  (selectiveness), took-longer and first-year attrition (retention), debt-to-earnings (after
+  graduation), athlete share (athletics).
+- **The architecture is one module per area over the ingest tables, with no ORM** — there is
+  no `app/models.py`, no `app/routers/` and no `app/analysis/`. Each area owns its query, its
+  Polars computation, its template and its test, so the set grows by addition.
+
+[ROADMAP.md](ROADMAP.md) tracks what is built and what was decided against;
+[METRICS-REVIEW.md](METRICS-REVIEW.md) argues which of these metrics earn their place.
+
+---
+
 ## The Problem
 
 A student holding two or three acceptance letters is trying to answer two questions,
