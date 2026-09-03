@@ -112,6 +112,12 @@ def _rows(frame: pl.DataFrame, schools: list[School]) -> list[dict]:
     return out
 
 
+def year_meaning(conn: sqlite3.Connection, year: int, trend: bool = False) -> str:
+    if trend:
+        return "Each year is an EADA reporting year: 2024 means the 2024–25 report."
+    return f"Figures labelled {year} are from EADA's {year}–{str(year + 1)[-2:]} reporting year."
+
+
 def load(conn: sqlite3.Connection, schools: list[School], year: int) -> dict:
     """Athlete share, the aid behind it, and who it goes to."""
     frame = pl.read_database(QUERY.format(year=int(year)), conn)

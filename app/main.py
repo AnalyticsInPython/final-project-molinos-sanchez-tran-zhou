@@ -115,16 +115,17 @@ def compare(
     color: Annotated[list[str] | None, Query()] = None,
     year: Annotated[list[int] | None, Query()] = None,
     cut: Annotated[list[str] | None, Query()] = None,
-    tailor: Annotated[str | None, Query()] = None,
+    tailor: Annotated[list[str] | None, Query()] = None,
 ):
     if not school:
         return RedirectResponse("/")
 
     # Cuts: `cut=<area>:<dimension>` breaks one area out by a group the survey
-    # reports; `tailor=1` lets the profile choose, with the reader's own group
-    # emphasised. The reader's race or sex never enters the URL — see app/cuts.py.
+    # reports; `tailor=<area>` lets the profile choose for that area, with the
+    # reader's own group emphasised. The reader's race or sex never enters the
+    # URL — see app/cuts.py.
     explicit = cuts.parse(cut)
-    tailoring = tailor == "1"
+    tailored = cuts.parse_tailor(tailor)
     params = list(request.query_params.multi_items())
 
     keys = [k for k in (area or []) if k in areas.BY_KEY] or [a.KEY for a in areas.ALL]
@@ -164,6 +165,7 @@ def compare(
             pinned = wanted[0] if len(wanted) == 1 and wanted[0] in available else None
             showing = pinned or latest_year(conn, module.TABLE)
             trending = bool(shown) and hasattr(module, "trend")
+            tailoring = module.KEY in tailored
             cut_context = None
 
             if trending:
@@ -205,7 +207,8 @@ def compare(
                     "source": getattr(module, "SOURCE", "IPEDS"),
                     "cut": cut_context,
                     # The "Show by" menu: one link per dimension this area's
-                    # survey carries, snapshot view only.
+                    # survey carries. Drawn on every card; where there is
+                    # nothing to offer the menu says why.
                     "cut_menu": [
                         {
                             "label": c.label,
@@ -216,21 +219,25 @@ def compare(
                     ]
                     if not trending
                     else [],
+                    "cut_menu_note": (
+                        "Available on the single-year view"
+                        if trending
+                        else None
+                        if getattr(module, "CUTS", {})
+                        else "This survey has no breakdowns"
+                    ),
                     "cut_clear": cuts.link(params, module.KEY, None),
+                    "tailor": _tailor_state(module, profile, tailoring, trending, params),
+                    # What the year on the chip means for this survey, since
+                    # "2021" is the class that started in 2014 in one table
+                    # and the class that entered in 2021 in another.
+                    "year_meaning": (
+                        module.year_meaning(conn, shown[-1] if trending else showing, trending)
+                        if hasattr(module, "year_meaning")
+                        else None
+                    ),
                 }
             )
-
-        # The "Tailor data for me" button. What it can use is whatever the
-        # profile holds that some area on the page has a cut for.
-        signals = cuts.signals(modules, profile) if profile else []
-        if profile is None:
-            tailor_state = "signin"
-        elif shown:
-            tailor_state = "trend"
-        elif not signals:
-            tailor_state = "empty"
-        else:
-            tailor_state = "on" if tailoring else "off"
 
     return templates.TemplateResponse(
         request,
@@ -241,13 +248,33 @@ def compare(
             "years": shown,
             "profile": profile,
             "highlights": highlights,
-            "tailor": {
-                "state": tailor_state,
-                "signals": signals,
-                "href": cuts.tailor_link(params, not tailoring),
-            },
         },
     )
+
+
+def _tailor_state(module, profile, tailoring: bool, trending: bool, params) -> dict | None:
+    """The per-card "Tailor data for me" button, or None to draw no button.
+
+    Nothing is drawn signed out or where the area has no cut a profile could
+    drive; a family comparing schools without an account should not see a
+    control that does nothing for them.
+    """
+    wants = cuts.wants(module)
+    if profile is None or not wants:
+        return None
+    if trending:
+        return {"state": "trend", "hint": "Available on the single-year view"}
+    signals = cuts.signals(module, profile)
+    if not signals:
+        return {
+            "state": "empty",
+            "hint": f"Add your {' or '.join(wants)} to your profile to tailor this area",
+        }
+    return {
+        "state": "on" if tailoring else "off",
+        "signals": signals,
+        "href": cuts.tailor_link(params, module.KEY, not tailoring),
+    }
 
 
 # --- Profile: a username, scores, an income bracket, and a shortlist -------

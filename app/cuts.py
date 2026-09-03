@@ -8,10 +8,10 @@ A cut appears in two ways, and they are the same mechanism:
 
 - **Asked for.** The "Show by" menu on an area card sets `cut=<area>:<dimension>`
   in the URL, and every group the survey reports is drawn beside the total.
-- **Offered.** `tailor=1` in the URL asks the server to look at the signed-in
-  profile and, for each area that can use a value it holds, draw that cut with
-  the reader's own group emphasised. The reader's race or sex never enters the
-  URL: a shared link tailors to whoever opens it, or to nobody.
+- **Offered.** `tailor=<area>` in the URL asks the server to look at the
+  signed-in profile and, if that area has a cut for a value the profile holds,
+  draw it with the reader's own group emphasised. The reader's race or sex
+  never enters the URL: a shared link tailors to whoever opens it, or to nobody.
 
 Rules, each learned from a chart that would otherwise have shipped:
 
@@ -108,15 +108,24 @@ def _own_code(cut: Cut, profile) -> int | None:
     return code if cut.name(code) else None
 
 
-def signals(modules, profile) -> list[str]:
-    """The profile values that could tailor something on this page, by label."""
+def signals(module, profile) -> list[str]:
+    """The profile values this area could tailor on, by label."""
     labels: list[str] = []
-    for module in modules:
-        for cut in getattr(module, "CUTS", {}).values():
-            label = cut.name(_own_code(cut, profile))
-            if label and label not in labels:
-                labels.append(label)
+    for cut in getattr(module, "CUTS", {}).values():
+        label = cut.name(_own_code(cut, profile))
+        if label and label not in labels:
+            labels.append(label)
     return labels
+
+
+def wants(module) -> list[str]:
+    """What a profile would need to hold for this area to tailor: "sex", "race"."""
+    return [c.label.lower() for c in getattr(module, "CUTS", {}).values() if c.profile_field]
+
+
+def parse_tailor(values: list[str] | None) -> set[str]:
+    """`tailor=selectiveness` -> {"selectiveness"}. One flag per area."""
+    return {v for v in values or [] if v}
 
 
 def link(params: list[tuple[str, str]], area_key: str, dimension: str | None) -> str:
@@ -127,10 +136,11 @@ def link(params: list[tuple[str, str]], area_key: str, dimension: str | None) ->
     return "/compare?" + urlencode(kept)
 
 
-def tailor_link(params: list[tuple[str, str]], on: bool) -> str:
-    kept = [(k, v) for k, v in params if k != "tailor"]
+def tailor_link(params: list[tuple[str, str]], area_key: str, on: bool) -> str:
+    """The current query with this one area's tailoring switched on or off."""
+    kept = [(k, v) for k, v in params if not (k == "tailor" and v == area_key)]
     if on:
-        kept.append(("tailor", "1"))
+        kept.append(("tailor", area_key))
     return "/compare?" + urlencode(kept)
 
 
@@ -143,13 +153,15 @@ def context(
     value,
     count,
     emphasis: int | None,
+    note: str | None = None,
 ) -> dict:
     """Everything the cut partial renders, from one survey's rows.
 
     `records` are that survey's rows for the year, one per school and group,
     with the total under code 99. `value(record)` is the rate, `count(record)`
     the number of people behind it. Groups below MIN_COHORT are listed as
-    suppressed rather than drawn.
+    suppressed rather than drawn. `note` replaces the cut's standing note when
+    the area can say something more exact for this year.
     """
     drawn = dict(cut.groups)
     if emphasis in cut.own_only:
@@ -198,6 +210,7 @@ def context(
 
     return {
         "cut": cut,
+        "note": note or cut.note,
         "emphasis": emphasis,
         "own_label": cut.name(emphasis),
         "title": f"{cut.metric} by {cut.label.lower()}",

@@ -293,14 +293,21 @@ back in as a headline. Whether it earns a chip is not a decision for now.
 
 ### What is built
 
-The UI decision, taken 3 Sep 2026: each area card carries a **Show by** menu at the top
-right of its head, listing only the breakdowns that area's survey has; and the page
-carries one **Tailor data for me** button that applies, to every area that can use one,
-the cut matching what the profile holds — the reader's own group in colour, everyone as
-a hollow marker, the distance printed at the right. Both are plain links: `cut=<area>:
-<dimension>` for the menu, `tailor=1` for the button. The reader's race or sex is
-resolved from the profile on the server and never enters a URL, so a shared link tailors
-to whoever opens it. Snapshot view only; the trend view hides the menu and says so.
+The UI decision, taken 3 Sep 2026 and corrected the same evening: every area card
+carries a **Show by** menu at the top right of its head — listing the breakdowns that
+area's survey has, or saying that it has none — and, beside it, its own **Tailor data
+for me** button, which draws the cut matching what the profile holds: the reader's own
+group in colour, everyone as a hollow marker, the distance printed at the right. The
+button exists only for a signed-in reader and only on cards that could use the profile;
+signed out there is nothing to see. Both are plain links: `cut=<area>:<dimension>` for
+the menu, `tailor=<area>` for the button. The reader's race or sex is resolved from the
+profile on the server and never enters a URL, so a shared link tailors to whoever opens
+it. Snapshot view only; on the trend view both controls say so.
+
+Every card also now says **what its year means** under the question — read from the
+table where the table knows (`outcome_measures.cohort_year`: the 2021 graduation figures
+follow students who started in fall 2014) and stated per survey elsewhere (admissions
+2024 is the class entering fall 2024; net price 2021 is the 2021–22 academic year).
 
 - `app/cuts.py` — the `Cut` declaration, URL parsing and links, suppression, the chart.
 - **Admit rate by sex** on selectiveness, from the profile's gender.

@@ -25,28 +25,6 @@
     {{ years[0] }} to {{ years[-1] }}{% endif %}.
   </p>
 
-  {# "Tailor data for me": every area that has a cut for something the profile
-     holds draws it with the reader's own group emphasised. Nothing personal
-     goes in the URL; the server reads the profile. #}
-  <div class="tailor-bar">
-    {% if tailor.state == "signin" %}
-      <a class="tailor" href="/profile/new">Tailor data for me</a>
-      <span class="tailor-hint">Needs a profile with your sex or race on it.</span>
-    {% elif tailor.state == "empty" %}
-      <a class="tailor muted" href="/profile">Tailor data for me</a>
-      <span class="tailor-hint">Add your sex or race to your profile and the areas that report by them will show your group.</span>
-    {% elif tailor.state == "trend" %}
-      <span class="tailor muted">Tailor data for me</span>
-      <span class="tailor-hint">Available on the single-year view.</span>
-    {% elif tailor.state == "on" %}
-      <a class="tailor on" href="{{ tailor.href }}">Tailored to you &middot; stop</a>
-      <span class="tailor-hint">Using: {{ tailor.signals | join(", ") }}.</span>
-    {% else %}
-      <a class="tailor" href="{{ tailor.href }}">Tailor data for me</a>
-      <span class="tailor-hint">Uses your profile's {{ tailor.signals | join(" and ") | lower }} where an area reports by it.</span>
-    {% endif %}
-  </div>
-
   {% for section in sections %}
     <section class="area">
       <div class="area-head">
@@ -54,9 +32,23 @@
         <h2>{{ section.area.TITLE }}</h2>
         {% if section.mode == "trend" %}<span class="year">{{ section.source }} {{ years[0] }}&ndash;{{ years[-1] }}</span>
         {% elif section.year %}<span class="year">{{ section.source }} {{ section.year }}</span>{% endif %}
-        {% if section.cut_menu %}
+        <div class="controls">
+          {# "Tailor data for me", per card: only for a signed-in reader, and
+             only where this area has a cut a profile could drive. #}
+          {% if section.tailor %}
+            {% if section.tailor.state == "on" %}
+              <a class="tailor on" href="{{ section.tailor.href }}"
+                 title="Using your profile: {{ section.tailor.signals | join(', ') }}">Tailored to you &middot; stop</a>
+            {% elif section.tailor.state == "off" %}
+              <a class="tailor" href="{{ section.tailor.href }}"
+                 title="Uses your profile: {{ section.tailor.signals | join(', ') }}">Tailor data for me</a>
+            {% else %}
+              <span class="tailor muted" title="{{ section.tailor.hint }}">Tailor data for me</span>
+            {% endif %}
+          {% endif %}
           {# "Show by": the breakdowns this area's survey carries. Plain links,
-             so it works without JavaScript and the URL is the whole state. #}
+             so it works without JavaScript and the URL is the whole state.
+             On every card, so a reader learns where breakdowns exist. #}
           <details class="cuts">
             <summary>{% if section.cut %}By {{ section.cut.cut.label | lower }}{% else %}Show by{% endif %} <span aria-hidden="true">&#9662;</span></summary>
             <ul class="menu" role="list">
@@ -66,11 +58,17 @@
               {% if section.cut %}
                 <li><a href="{{ section.cut_clear }}">Everyone only</a></li>
               {% endif %}
+              {% if section.cut_menu_note %}
+                <li class="none">{{ section.cut_menu_note }}</li>
+              {% endif %}
             </ul>
           </details>
-        {% endif %}
+        </div>
       </div>
       <p class="question">{{ section.area.QUESTION }}</p>
+      {% if section.year_meaning %}
+        <p class="year-meaning">{{ section.year_meaning }}</p>
+      {% endif %}
       {% if highlights and section.area.KEY == "institution_characteristics" %}
         {# Lives here, not as a page-top banner: institution characteristics
            is this page's "who is this school, at a glance" area, and each

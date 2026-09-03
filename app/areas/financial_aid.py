@@ -105,6 +105,12 @@ TREND_QUERY = """
 """
 
 
+def year_meaning(conn: sqlite3.Connection, year: int, trend: bool = False) -> str:
+    if trend:
+        return "Each year is an academic year: 2021 means what families paid in 2021–22."
+    return f"Net price labelled {year} is what families paid in {year}–{str(year + 1)[-2:]}."
+
+
 def load(conn: sqlite3.Connection, schools: list[School], year: int) -> dict:
     """Net price per band per school, plus the spread between top and bottom."""
     frame = pl.read_database(QUERY.format(year=int(year)), conn)

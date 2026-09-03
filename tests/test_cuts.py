@@ -58,12 +58,14 @@ def test_the_link_replaces_one_areas_cut_and_keeps_the_rest():
     assert cuts.link(params, "retention", None) == "/compare?school=1&school=2&year=2021"
 
 
-def test_the_link_carries_the_dimension_not_the_person():
-    """Tailoring is a flag. The reader's code is resolved server-side from the
-    profile, so a shared URL never says what the sharer's race or sex is."""
-    on = cuts.tailor_link([("school", "1")], True)
-    assert on == "/compare?school=1&tailor=1"
-    assert cuts.tailor_link([("school", "1"), ("tailor", "1")], False) == "/compare?school=1"
+def test_the_link_carries_the_area_not_the_person():
+    """Tailoring is a per-area flag. The reader's code is resolved server-side
+    from the profile, so a shared URL never says what the sharer's race or sex is."""
+    on = cuts.tailor_link([("school", "1")], "selectiveness", True)
+    assert on == "/compare?school=1&tailor=selectiveness"
+    both = [("school", "1"), ("tailor", "selectiveness"), ("tailor", "retention")]
+    assert cuts.tailor_link(both, "retention", False) == "/compare?school=1&tailor=selectiveness"
+    assert cuts.parse_tailor(["retention", "", "selectiveness"]) == {"retention", "selectiveness"}
 
 
 # --- choosing -------------------------------------------------------------------
@@ -91,14 +93,15 @@ def test_declining_to_say_drives_nothing():
     """Gender 0 and race 9 are a person declining the question, not a group."""
     assert cuts.choose(selectiveness, None, _profile(gender=0)) is None
     assert cuts.choose(retention, None, _profile(race=9)) is None
-    assert cuts.signals([selectiveness, retention], _profile(gender=0, race=9)) == []
+    assert cuts.signals(selectiveness, _profile(gender=0, race=9)) == []
+    assert cuts.signals(retention, _profile(gender=0, race=9)) == []
 
 
 def test_signals_name_what_the_button_will_use():
-    assert cuts.signals([selectiveness, retention], _profile(gender=2, race=3)) == [
-        "Women",
-        "Hispanic",
-    ]
+    reader = _profile(gender=2, race=3)
+    assert cuts.signals(selectiveness, reader) == ["Women"]
+    assert cuts.signals(retention, reader) == ["Hispanic"]
+    assert cuts.wants(selectiveness) == ["sex"] and cuts.wants(retention) == ["race"]
 
 
 # --- admit rate by sex ---------------------------------------------------------
@@ -206,18 +209,24 @@ def test_the_page_draws_a_cut_only_when_asked():
     base = f"/compare?school={MICHIGAN}&school={BROWN}&area=selectiveness"
     plain = client.get(base).text
     assert "Admit rate by sex" not in plain
-    assert 'class="cuts"' in plain, "the Show-by menu is on the card"
-    assert "Tailor data for me" in plain
+    assert plain.count('class="cuts"') == 1, "one Show-by menu per card"
+    assert "Tailor data for me" not in plain, "signed out, no tailoring control at all"
 
     cut = client.get(base + "&cut=selectiveness:sex").text
     assert "Admit rate by sex" in cut
     assert "Everyone only" in cut
     assert "Tailored to you" not in cut
 
-    # Trend view: no menu, and a cut in the URL is ignored rather than drawn.
+    # Every card gets the menu, including one whose survey has no breakdown.
+    more = client.get(base + "&area=outcomes").text
+    assert more.count('class="cuts"') == 2
+    assert "This survey has no breakdowns" in more
+
+    # Trend view: the menu stays, says why it is empty, and a cut in the URL
+    # is ignored rather than drawn.
     trend = client.get(base + "&year=2020&year=2024&cut=selectiveness:sex").text
     assert "Admit rate by sex" not in trend
-    assert 'class="cuts"' not in trend
+    assert "Available on the single-year view" in trend
 
 
 def test_tailoring_reads_the_profile_and_never_the_url(tmp_path, monkeypatch):
@@ -242,18 +251,27 @@ def test_tailoring_reads_the_profile_and_never_the_url(tmp_path, monkeypatch):
 
     off = client.get(base).text
     assert "Tailored to you" not in off
-    assert "women and hispanic" in off, "the button says what it would use"
+    assert off.count("Tailor data for me") == 2, "one button per card that can use the profile"
+    assert "Uses your profile: Women" in off and "Uses your profile: Hispanic" in off
 
-    on = client.get(base + "&tailor=1").text
+    one = client.get(base + "&tailor=selectiveness").text
+    assert "Tailored to you: Women" in one
+    assert "Tailored to you: Hispanic" not in one, "tailoring is per card"
+
+    on = client.get(base + "&tailor=selectiveness&tailor=retention").text
     assert "Tailored to you: Women" in on
     assert "Tailored to you: Hispanic" in on
-    assert "Using: Women, Hispanic" in on
-    assert "tailor=1" not in on.split("Tailored to you")[0].split("tailor-bar")[1], (
-        "the stop link drops the flag"
-    )
+    assert on.count("Tailored to you &middot; stop") == 2
     for code in ("gender=2", "race=3", "sex:2", "race:3"):
         assert code not in on, f"{code} must never appear in a link"
 
     # An explicit choice on one area keeps the emphasis from the profile.
-    both = client.get(base + "&tailor=1&cut=selectiveness:sex").text
+    both = client.get(base + "&tailor=selectiveness&cut=selectiveness:sex").text
     assert "Tailored to you: Women" in both
+
+    # A profile with nothing usable sees the button, disabled, told what to add.
+    with profiles.connect() as pconn:
+        profiles.get_or_create(pconn, "blank")
+    empty = TestClient(app, cookies={"profile": "blank"}).get(base).text
+    assert "Add your sex to your profile" in empty
+    assert "Add your race to your profile" in empty

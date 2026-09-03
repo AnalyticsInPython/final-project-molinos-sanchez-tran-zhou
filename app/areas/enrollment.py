@@ -96,6 +96,12 @@ TREND_QUERY = """
 """
 
 
+def year_meaning(conn: sqlite3.Connection, year: int, trend: bool = False) -> str:
+    if trend:
+        return "Each year is that autumn's headcount."
+    return f"Headcount as of fall {year}."
+
+
 def load(conn: sqlite3.Connection, schools: list[School], year: int) -> dict:
     """Total undergrad headcount, composition by race, and the gender split."""
     frame = pl.read_database(QUERY.format(year=int(year)), conn)

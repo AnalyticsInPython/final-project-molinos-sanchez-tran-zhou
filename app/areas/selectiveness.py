@@ -190,6 +190,15 @@ def cut(
     )
 
 
+def year_meaning(conn: sqlite3.Connection, year: int, trend: bool = False) -> str:
+    if trend:
+        return "Each year is the class entering that fall: applications, admits and enrolments."
+    return (
+        f"Figures labelled {year} are for the class that entered in fall {year}: "
+        f"applications, admits and enrolments for that autumn."
+    )
+
+
 def _empty(schools: list[School]) -> dict:
     return {
         "rows": [],

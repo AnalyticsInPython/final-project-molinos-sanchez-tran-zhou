@@ -270,6 +270,12 @@ TRIVIA_QUERY = """
 """
 
 
+def year_meaning(conn: sqlite3.Connection, year: int, trend: bool = False) -> str:
+    if trend:
+        return "Each year is what the school reported for that academic year."
+    return f"As reported to IPEDS for the {year}–{str(year + 1)[-2:]} academic year."
+
+
 def load(conn: sqlite3.Connection, schools: list[School], year: int) -> dict:
     """One reference row per school, plus a locator map and top fields of study."""
     unitids = [s.unitid for s in schools]

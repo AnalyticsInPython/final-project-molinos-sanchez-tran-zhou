@@ -192,11 +192,56 @@ CUTS = {
 }
 
 
+def _cohort_year(conn: sqlite3.Connection, table: str, year: int) -> int | None:
+    """The fall the students labelled `year` actually started, as the table says."""
+    row = conn.execute(
+        f"SELECT cohort_year FROM {table} WHERE year = ? AND cohort_year > 0 LIMIT 1",
+        (int(year),),
+    ).fetchone()
+    return int(row[0]) if row else None
+
+
+def year_meaning(conn: sqlite3.Connection, year: int, trend: bool = False) -> str:
+    """What the year on the card means here, because it is not the obvious thing.
+
+    outcome_measures labelled 2021 follows the class that started in fall
+    2014; fall_retention labelled 2021 follows the class that started in fall
+    2020. Neither is "students who graduated in 2021".
+    """
+    started = _cohort_year(conn, TABLE, year)
+    if started is None and trend:
+        # The window runs past this table's last year; explain the newest
+        # year it does have, since that is the one the line ends on.
+        row = conn.execute(
+            f"SELECT year, cohort_year FROM {TABLE} WHERE cohort_year > 0 "
+            "ORDER BY year DESC LIMIT 1"
+        ).fetchone()
+        if row:
+            year, started = int(row[0]), int(row[1])
+    if started is None:
+        return (
+            f"{year} is the year IPEDS reported these figures, "
+            f"not the year the students enrolled."
+        )
+    if trend:
+        return (
+            f"Each year's graduation figures follow students who started {year - started} years "
+            f"earlier — {year} reports the class of fall {started}. The retention line follows "
+            f"the class that started the year before each label."
+        )
+    return (
+        f"The {year} graduation figures follow students who started in fall {started}; "
+        f"{year} is when IPEDS reported them, not when they enrolled. Left after year one "
+        f"follows the class that started in fall {year - 1} and came back in fall {year}."
+    )
+
+
 def cut(
     conn: sqlite3.Connection, schools: list[School], year: int, selection: cuts.Selection
 ) -> dict:
     """Six-year completion by race, beside that survey's own total."""
     ids = {s.unitid for s in schools}
+    started = _cohort_year(conn, "grad_rates", year)
     records = [
         r
         for r in pl.read_database(RACE_CUT_QUERY.format(year=int(year)), conn).to_dicts()
@@ -210,6 +255,14 @@ def cut(
         value=lambda r: r["rate"],
         count=lambda r: r["cohort"] or 0,
         emphasis=selection.emphasis,
+        note=(
+            f"From the IPEDS Graduation Rates survey: students who started in fall {started} "
+            f"and finished within six years. A different survey from the outcome measures "
+            f"below, so everyone here is that survey's own total rather than the six-year "
+            f"figure in the table. Groups under 30 students are not drawn."
+            if started
+            else None
+        ),
     )
 
 

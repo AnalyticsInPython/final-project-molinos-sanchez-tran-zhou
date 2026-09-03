@@ -79,6 +79,15 @@ QUERY = """
 """
 
 
+def year_meaning(conn: sqlite3.Connection, year: int, trend: bool = False) -> str:
+    """Three cohorts, none of them a graduating class — see the module docstring."""
+    return (
+        "Three different groups of students: earnings six years after entry are for those who "
+        "entered in 2013–15 and ten years for those who entered in 2009–11, both measured in "
+        "2020–21; median debt is for 2020–21 completers who borrowed."
+    )
+
+
 def load(conn: sqlite3.Connection, schools: list[School], year: int) -> dict:
     """Earnings at 6 and 10 years, median debt, and the debt-to-earnings figure.
 
