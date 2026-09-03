@@ -144,6 +144,59 @@ def test_part_time_retention_is_never_read(conn, year):
         assert row["retention"] is None or 0 < row["retention"] <= 1
 
 
+def test_first_year_attrition_is_reported_for_every_school(conn, year):
+    rows = retention.load(conn, all_schools(conn), year)["rows"]
+    for row in rows:
+        assert 0 <= row["left_after_year_one"] < 0.5
+        assert row["did_not_return"] >= 0
+        assert row["started"] > 0
+
+
+def test_attrition_comes_from_counts_not_the_rounded_rate(conn, year):
+    """IPEDS rounds retention_rate to two decimals.
+
+    At these schools that is the difference between 2.57% and 3.0% attrition,
+    and it collapses schools hundreds of students apart onto the same figure.
+    Michigan and Carnegie Mellon both publish 0.97 and are not the same.
+    """
+    rows = retention.load(conn, all_schools(conn), year)["rows"]
+    exact = {
+        r["school"].short: r["left_after_year_one"]
+        for r in rows
+        if r["did_not_return"] is not None
+    }
+    assert exact["Michigan"] != exact["Carnegie Mellon"]
+    for row in rows:
+        if row["did_not_return"] is not None and row["started"]:
+            assert row["left_after_year_one"] == pytest.approx(
+                row["did_not_return"] / row["started"], abs=1e-9
+            )
+
+
+def test_attrition_and_completion_are_not_one_cohort(conn, year):
+    """They describe students who started seven years apart.
+
+    Drawing them as one funnel — started, returned, graduated — would be the
+    obvious presentation and would be about two different groups of people.
+    """
+    grad_cohort = conn.execute(
+        "SELECT cohort_year FROM outcome_measures WHERE year = ? AND unitid = ? "
+        "AND ftpt = 1 AND fed_aid_type = 99 AND class_level = 1",
+        (year, MICHIGAN),
+    ).fetchone()[0]
+    assert grad_cohort < year - 5
+
+    row = _row(retention.load(conn, selected(conn, [MICHIGAN]), year), MICHIGAN)
+    grad_cohort_size = row["cohort"]
+    assert row["started"] != grad_cohort_size
+
+
+def test_the_leaving_chart_sorts_worst_first(conn, year):
+    chart = retention.load(conn, all_schools(conn), year)["leaving_chart"]
+    values = [float(b["value"].rstrip("%")) for b in chart["bars"]]
+    assert values == sorted(values, reverse=True)
+
+
 def test_the_query_is_filtered_to_one_year(conn):
     schools = all_schools(conn)
     old = retention.load(conn, schools, 2017)["rows"]
@@ -161,6 +214,7 @@ def test_trend_shows_both_rates_and_the_distance(conn):
     years = years_available(conn, retention.TABLE)
     context = retention.trend(conn, selected(conn, [STANFORD, NOTRE_DAME]), years)
     assert [p["title"] for p in context["panels"]] == [
+        "Left after the first year",
         "Finishing in four years",
         "Finishing in six",
         "Taking longer than four years",

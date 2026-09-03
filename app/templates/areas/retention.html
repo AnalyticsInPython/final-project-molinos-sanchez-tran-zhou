@@ -1,5 +1,32 @@
 {# The two gaps the headline rate hides, then the numbers behind them. #}
 
+{% if context.leaving_chart %}
+  {% set c = context.leaving_chart %}
+  <div class="figure">
+    <h3>Left after the first year</h3>
+    <p class="sub">
+      The share of a first-year class that did not come back for a second &mdash; students who
+      transferred, dropped out, or did not return for any other reason. Shown as the loss
+      rather than the retention rate, because these schools all retain between 93% and 99%
+      and that is five bars of the same length.
+      <strong>This is a much more recent group of students than the graduation figures
+      below</strong>, who started eight years earlier.
+    </p>
+    <svg viewBox="0 0 {{ c.width }} {{ c.height }}" role="img"
+         aria-label="Share of first-year students who did not return for a second year">
+      {% for bar in c.bars %}
+        <text x="{{ c.label_x }}" y="{{ bar.text_y }}" text-anchor="end"
+              font-size="12" fill="#17211d">{{ bar.name }}</text>
+        <rect x="{{ c.plot_x }}" y="{{ bar.y }}" width="{{ bar.width }}" height="14"
+              rx="2" fill="{{ bar.color }}"></rect>
+        <text x="{{ bar.label_x }}" y="{{ bar.text_y }}" font-size="11" fill="#4f5a54">
+          {{ bar.value }}<tspan fill="#7b857e"> &mdash; {{ bar.detail }}</tspan>
+        </text>
+      {% endfor %}
+    </svg>
+  </div>
+{% endif %}
+
 {% if context.gap_chart %}
   {% set c = context.gap_chart %}
   <div class="figure">
@@ -95,7 +122,7 @@
         <th class="metric-head">Took longer</th>
         <th>Finished in 4 years</th>
         <th>Finished in 6</th>
-        <th>Returns after year one</th>
+        <th>Left after year one</th>
         <th>Cohort</th>
         <th>Spread by race</th>
       </tr>
@@ -113,7 +140,14 @@
           </td>
           <td>{% if row.rate_4yr is none %}&mdash;{% else %}{{ row.rate_4yr | percent(0) }}{% endif %}</td>
           <td>{% if row.rate_6yr is none %}&mdash;{% else %}{{ row.rate_6yr | percent(0) }}{% endif %}</td>
-          <td>{% if row.retention is none %}&mdash;{% else %}{{ row.retention | percent(0) }}{% endif %}</td>
+          <td>
+            {% if row.left_after_year_one is none %}&mdash;
+            {% else %}{{ row.left_after_year_one | percent(1) }}
+              {% if row.did_not_return is not none %}
+                <span class="missing">({{ row.did_not_return | number }})</span>
+              {% endif %}
+            {% endif %}
+          </td>
           <td>{{ row.cohort | number }}</td>
           <td>
             {% if row.race_range is none %}<span class="missing">&mdash;</span>
@@ -128,6 +162,12 @@
 </div>
 
 <p class="note">
+  <strong>Left after year one</strong> is computed from head counts rather than the
+  published retention rate, which IPEDS rounds to two decimals &mdash; enough to report two
+  schools four hundred students apart as identical. It describes students who started one
+  year before the year shown, so it is a far more recent cohort than the graduation figures,
+  which follow students who started eight years earlier. Both are facts about the school;
+  neither is a stage in the other&rsquo;s story.
   <strong>Took longer</strong> is the six-year rate minus the four-year rate &mdash; the
   share of a cohort that finishes, but not on time, and pays for the extra year.
   <strong>Spread by race</strong> is the distance between the best and worst reported group

@@ -12,10 +12,22 @@ So the computed metrics are:
 - `took_longer` — the six-year rate minus the four-year rate. The share of a
   cohort that finishes, but not on time. Neither IPEDS nor anyone else
   publishes it.
+- `left_after_year_one` — the share of a first-year class that did not come
+  back for a second. The earliest signal there is, and the one that reaches a
+  student soonest: someone who leaves in year one never appears in any
+  graduation figure at all.
 - `race_range` — the distance between the best and worst reported racial group
   at that school, on the six-year rate. Not an average: the point is the spread
   the headline conceals. Michigan graduates 93% overall, 83% of its Black
   students and 95% of its Asian ones.
+
+**Retention describes different people from the graduation figures, and the
+page says so.** `fall_retention` for 2021 is the class that started in 2020 and
+came back in 2021. `outcome_measures` for 2021 is the class that started in
+2014 and had eight years to finish. Seven years separate them, so they cannot
+be drawn as one funnel of the same cohort narrowing — which is the obvious and
+wrong way to present them together. They are two facts about one school,
+measured on two groups of students.
 
 **The four-year rate has to be derived, and from a second table.** `grad_rates`
 carries a `completers_100pct` column that is the missing sentinel in all 225
@@ -109,10 +121,24 @@ RACE_QUERY = """
     WHERE subcohort = 99 AND sex = 99 AND year = {year}
 """
 
+# ftpt 1 is full-time. Part-time retention is almost entirely sentinel across
+# this sample, and averaging it in would report missing data as attrition.
 RETENTION_QUERY = """
-    SELECT unitid, retention_rate AS rate
+    SELECT unitid,
+           retention_rate     AS rate,
+           prev_cohort_adj    AS started,
+           returning_students AS returned
     FROM fall_retention
     WHERE ftpt = 1 AND year = {year}
+"""
+
+RETENTION_TREND_QUERY = """
+    SELECT year, unitid,
+           retention_rate     AS rate,
+           prev_cohort_adj    AS started,
+           returning_students AS returned
+    FROM fall_retention
+    WHERE ftpt = 1 AND year BETWEEN {first} AND {last}
 """
 
 TREND_QUERY = """
@@ -136,6 +162,21 @@ COVERAGE_QUERY = """
 """
 
 
+def _attrition(record: dict | None) -> float | None:
+    """Share of a first-year class that did not return, from the head counts.
+
+    Falls back to the published rate when a count is missing, since a rounded
+    figure beats no figure — but the counts are preferred wherever they exist.
+    """
+    if not record:
+        return None
+    started, returned = record.get("started"), record.get("returned")
+    if started and returned is not None and started > 0:
+        return 1 - (returned / started)
+    rate = record.get("rate")
+    return 1 - rate if rate is not None else None
+
+
 def _clean(frame: pl.DataFrame, column: str = "rate") -> pl.DataFrame:
     return frame.with_columns(
         pl.when(pl.col(column).is_in(SENTINELS))
@@ -152,6 +193,7 @@ def load(conn: sqlite3.Connection, schools: list[School], year: int) -> dict:
         return {
             "rows": [],
             "gap_chart": None,
+            "leaving_chart": None,
             "range_chart": None,
             "notices": coverage_notices(list(schools), [], subject=SUBJECT),
         }
@@ -167,7 +209,7 @@ def load(conn: sqlite3.Connection, schools: list[School], year: int) -> dict:
         and (r["finished_4yr"] or 0) > 0
         and (r["finished_6yr"] or 0) > 0
     }
-    by_school = {r["unitid"]: r["rate"] for r in retention.to_dicts()}
+    staying = {r["unitid"]: r for r in retention.to_dicts()}
 
     # Only groups that describe a student rather than a reporting artefact.
     groups: dict[int, dict[int, float]] = {}
@@ -204,7 +246,24 @@ def load(conn: sqlite3.Connection, schools: list[School], year: int) -> dict:
                     if rate_4yr is not None and rate_6yr is not None
                     else None
                 ),
-                "retention": by_school.get(uid),
+                "retention": (staying.get(uid) or {}).get("rate"),
+                # The loss, not the rate: "3% left" is the number a student is
+                # asking about and 97% retention buries it.
+                #
+                # Computed from the counts rather than from retention_rate,
+                # which IPEDS rounds to two decimals. At these schools that
+                # rounding is the difference between 2.6% and 3.0% attrition —
+                # a sixth of the figure, on a measure where the whole spread is
+                # about five points.
+                "left_after_year_one": _attrition(staying.get(uid)),
+                "started": (staying.get(uid) or {}).get("started"),
+                "did_not_return": (
+                    staying[uid]["started"] - staying[uid]["returned"]
+                    if staying.get(uid)
+                    and staying[uid].get("started")
+                    and staying[uid].get("returned")
+                    else None
+                ),
                 "groups": spread,
                 "best": {"race": codes.RACE.get(best[0]), "rate": best[1]} if best else None,
                 "worst": {"race": codes.RACE.get(worst[0]), "rate": worst[1]} if worst else None,
@@ -243,6 +302,7 @@ def load(conn: sqlite3.Connection, schools: list[School], year: int) -> dict:
     return {
         "rows": rows,
         "gap_chart": _gap_chart(rows),
+        "leaving_chart": _leaving_chart(rows),
         "range_chart": _range_chart(rows),
         "notices": notices,
     }
@@ -304,6 +364,60 @@ def _gap_chart(rows: list[dict]) -> dict | None:
         "axis_y": height - bottom + 20,
         "top": top - 8,
         "label_x": left - 14,
+    }
+
+
+def _leaving_chart(rows: list[dict]) -> dict | None:
+    """The share of a first-year class that did not come back, worst first.
+
+    Drawn as the loss rather than the retention rate. These schools retain
+    between 93% and 99%, and a bar chart of that is five bars of identical
+    length; the same data as attrition runs from 1% to 7% and separates them
+    sevenfold. It is the same number either way, and only one of them is
+    legible.
+    """
+    entries = [r for r in rows if r["left_after_year_one"] is not None]
+    if not entries:
+        return None
+    entries.sort(key=lambda r: r["left_after_year_one"], reverse=True)
+
+    width, row_h = 640, 26
+    # The value gutter carries "3.9% — 234 of 6,072", which is the widest label
+    # any chart in this app draws; 108px clipped the school with both the
+    # highest attrition and the largest cohort.
+    label_w, value_w = 150, 150
+    top, bottom = 10, 10
+    plot_w = width - label_w - value_w
+    largest = max(r["left_after_year_one"] for r in entries) or 1
+
+    bars = []
+    for i, row in enumerate(entries):
+        y = top + row_h * i + row_h / 2
+        length = plot_w * (row["left_after_year_one"] / largest)
+        count = row["did_not_return"]
+        bars.append(
+            {
+                "name": row["school"].short,
+                "color": row["school"].color,
+                "y": round(y - 7, 1),
+                "text_y": round(y + 4, 1),
+                "width": round(max(length, 2), 1),
+                "label_x": round(label_w + max(length, 2) + 8, 1),
+                "value": percent(row["left_after_year_one"], 1),
+                "detail": (
+                    f"{count:,} of {row['started']:,}"
+                    if count is not None and row["started"]
+                    else ""
+                ),
+            }
+        )
+
+    return {
+        "width": width,
+        "height": top + row_h * len(entries) + bottom,
+        "bars": bars,
+        "label_x": label_w - 10,
+        "plot_x": label_w,
     }
 
 
@@ -387,6 +501,7 @@ def trend(conn: sqlite3.Connection, schools: list[School], years: list[int]) -> 
     frame = frame.filter(pl.col("unitid").is_in([s.unitid for s in schools]))
 
     four, six, later = {}, {}, {}
+    leaving = {}
     reported, seen = set(), set()
     for r in frame.to_dicts():
         cohort = r["cohort"] or 0
@@ -399,7 +514,27 @@ def trend(conn: sqlite3.Connection, schools: list[School], years: list[int]) -> 
         six[key] = r["finished_6yr"] / cohort
         later[key] = six[key] - four[key]
 
+    # Retention spans more years than completion does, and is its own cohort,
+    # so it is queried over the same window separately rather than joined.
+    span = pl.read_database(
+        RETENTION_TREND_QUERY.format(first=int(min(years)), last=int(max(years))), conn
+    )
+    wanted = {s.unitid for s in schools}
+    for r in _clean(span).to_dicts():
+        value = _attrition(r)
+        if value is not None and r["unitid"] in wanted:
+            leaving[(r["unitid"], r["year"])] = value
+
     panels = [
+        {
+            "title": "Left after the first year",
+            "subtitle": (
+                "A different and more recent cohort than the completion figures "
+                "below — this is last year's first-years, not the class that "
+                "graduated."
+            ),
+            "chart": line_chart(schools, years, leaving, fmt=lambda v: percent(v, 1)),
+        },
         {
             "title": "Finishing in four years",
             "subtitle": "The share of a cohort graduating on time.",
