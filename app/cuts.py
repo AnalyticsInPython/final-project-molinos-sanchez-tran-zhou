@@ -115,12 +115,29 @@ def signals(module, profile) -> list[str]:
         label = cut.name(_own_code(cut, profile))
         if label and label not in labels:
             labels.append(label)
+    # Not every profile field an area can use is a cut. A cut is a breakdown
+    # of a survey's own rows, drawn by cut.html; financial aid instead
+    # emphasises the reader's income band on an axis it already draws, and
+    # reads their home state to pick the published sticker that applies to
+    # them. An area declares those as TAILORS — {profile field: (what to call
+    # it, code labels or None)} — and the hint names the value found rather
+    # than the field, so the reader sees "$30,001–48,000", not "income band".
+    for attribute, (_, values) in getattr(module, "TAILORS", {}).items():
+        value = getattr(profile, attribute, None) if profile is not None else None
+        label = values.get(value) if values else value
+        if label and label not in labels:
+            labels.append(label)
     return labels
 
 
 def wants(module) -> list[str]:
-    """What a profile would need to hold for this area to tailor: "sex", "race"."""
-    return [c.label.lower() for c in getattr(module, "CUTS", {}).values() if c.profile_field]
+    """What a profile would need to hold for this area to tailor: "sex", "race".
+
+    Both sources of tailoring, since the button is drawn from this: a cut that
+    names a profile field, and the area's own TAILORS declaration.
+    """
+    from_cuts = [c.label.lower() for c in getattr(module, "CUTS", {}).values() if c.profile_field]
+    return from_cuts + [label for label, _ in getattr(module, "TAILORS", {}).values()]
 
 
 def parse_tailor(values: list[str] | None) -> set[str]:
