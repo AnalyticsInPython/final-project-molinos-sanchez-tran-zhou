@@ -12,10 +12,13 @@ family's income, and whether it does better than the schools it resembles.
 
 ## Status
 
-Four areas built — **student financial aid**, **after graduation** (post-grad earnings and
-debt), **selectiveness**, and **institution characteristics** (with a locator map) — over a
-FastAPI app with a searchable school picker. The ingest pulls a range of years per endpoint,
-and each area shows the newest year it actually has, which is not the same year for every area.
+Four areas wired in — **student financial aid**, **selectiveness**, **enrollment**
+(race/ethnicity, gender, international share), and **institution characteristics** (locator
+map, founding year and motto from Wikidata) — over a FastAPI app with a searchable school
+picker. A fifth, **after graduation** (post-grad earnings and debt via College Scorecard), is
+built and tested but deliberately not wired in — see `app/areas/__init__.py` for why. The
+ingest pulls a range of years per endpoint, and each area shows the newest year it actually
+has, which is not the same year for every area.
 
 ## Setup
 
@@ -31,10 +34,10 @@ uv sync
 uv run python scripts/import_ipeds.py
 ```
 
-Pulls fourteen IPEDS endpoints from the Urban Institute Education Data Explorer, plus one
-non-IPEDS table — post-graduation earnings and debt from the College Scorecard API — into
-`data/likeforlike.db` (a few MB, well under a minute). The database is gitignored — it is
-rebuilt from this script, never committed.
+Pulls fourteen IPEDS endpoints from the Urban Institute Education Data Explorer, plus two
+non-IPEDS tables — post-graduation earnings and debt from the College Scorecard API, and
+founding year and motto from Wikidata — into `data/likeforlike.db` (a few MB, well under a
+minute). The database is gitignored — it is rebuilt from this script, never committed.
 
 **Each IPEDS endpoint gets a range of years, not one anchor year.** Comparison areas pull ten
 years (2015–2024) so a trend can be drawn; reference tables pull four. Every endpoint-year
@@ -45,14 +48,17 @@ runs to 2024 and does not warn.
 
 `--years N` trims every IPEDS range to its N most recent years for a faster rebuild.
 
-**College Scorecard is the odd one out: one snapshot, not a range.** Its three fields are
-three different entry/completion cohorts rather than one collection year — see
-`outcomes.py`'s docstring for exactly which. No API key is required to build the database:
-it falls back to the public `DEMO_KEY`, which is rate-limited but enough for this 25-school
-sample. Copy `.env.example` to `.env` if you want a `COLLEGE_SCORECARD_API_KEY` of your own
-(free: <https://api.data.gov/signup/>), or a `MAPTILER_API_KEY` for the locator map on
-institution characteristics (free: <https://cloud.maptiler.com/account/keys/>) — the map is
-the one feature that doesn't degrade gracefully without a key.
+**College Scorecard and Wikidata are the odd ones out: a snapshot, not a range.** Scorecard's
+three fields are three different entry/completion cohorts rather than one collection year —
+see `outcomes.py`'s docstring for exactly which. Wikidata has no year at all, just whatever is
+on the page now, joined on `wdt:P1771` — Wikidata's own IPEDS-UNITID property — rather than by
+name, so a school like Hunter College can't get matched into a query meant for Caltech. No API
+key is required to build the database: Scorecard falls back to the public `DEMO_KEY`, which is
+rate-limited but enough for this 25-school sample, and Wikidata's query service needs none at
+all. Copy `.env.example` to `.env` if you want a `COLLEGE_SCORECARD_API_KEY` of your own (free:
+<https://api.data.gov/signup/>), or a `MAPTILER_API_KEY` for the locator map on institution
+characteristics (free: <https://cloud.maptiler.com/account/keys/>) — the map is the one
+feature that doesn't degrade gracefully without a key.
 
 ```
 scripts/schools.py        the 25-school working sample

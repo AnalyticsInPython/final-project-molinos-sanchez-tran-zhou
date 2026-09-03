@@ -116,6 +116,10 @@
         {% for row in context.rows %}<td>{{ row.size or "—" }}</td>{% endfor %}
       </tr>
       <tr>
+        <th scope="row">Founded</th>
+        {% for row in context.rows %}<td>{{ row.founded_year or "—" }}</td>{% endfor %}
+      </tr>
+      <tr>
         <th scope="row">Calendar</th>
         {% for row in context.rows %}
           <td class="stack">
@@ -165,6 +169,15 @@
           </td>
         {% endfor %}
       </tr>
+      <tr>
+        <th scope="row">Motto</th>
+        {% for row in context.rows %}
+          <td>
+            {% if row.motto %}<em>{{ row.motto }}</em>
+            {% else %}<span class="missing">&mdash;</span>{% endif %}
+          </td>
+        {% endfor %}
+      </tr>
     </tbody>
   </table>
 </div>
@@ -186,4 +199,8 @@
   next to the row &mdash; on its own window, not the year the rest of this table is showing;
   the total a share is taken against is IPEDS's own reported total, not our sum of the rows
   shown.
+  <strong>Founded</strong> and <strong>Motto</strong> are the only two fields on this page
+  that are not IPEDS &mdash; both come from Wikidata, joined on the same IPEDS ID Wikidata
+  records for each school, and carry no publication year of their own. A missing motto means
+  Wikidata has none on file, not that the school lacks one.
 </p>

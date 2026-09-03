@@ -64,14 +64,24 @@ would not agree with IPEDS's own by construction. Backfilling to the same
 school's nearest earlier good year keeps one source of truth and costs
 nothing when a table is fully current, which is most of them, most years.
 
-Labelled where it matters, silent where it doesn't. `institutional_characteristics`
-(calendar system — a real, if rare, policy change) still gets a small
-`(IPEDS YYYY)` note plus a page-level notice when backfilled. `directory`
-(location, control, size) backfills without either: none of those meaningfully
-change year to year for a school that already exists, and a freshness caveat
-on a fact that cannot go stale is a notice nobody reads. `directory_year` and
-`directory_is_stale` stay on each row regardless — cheap to keep, useful if
-that judgment call ever needs revisiting — the template just doesn't show them.
+Labelled where it matters, silent where it doesn't. Calendar system (a real,
+if rare, policy change) gets a small `(IPEDS YYYY)` note plus a page-level
+notice when backfilled. `directory` (location, control, size) and housing
+backfill without either: none of those meaningfully change year to year for
+a school that already exists, and a freshness caveat on a fact that cannot
+go stale is a notice nobody reads. `directory_year` and `directory_is_stale`
+stay on each row regardless — cheap to keep, useful if that judgment call
+ever needs revisiting — the template just doesn't show them.
+
+**Housing backfills on its own schedule, separately from calendar and
+religious affiliation, even though all three live in the same
+`institutional_characteristics` row.** Checked directly: calendar and
+religious affiliation report together (17/25 schools in 2023, 25/25 every
+other year), but `oncampus_housing` follows a different pattern and drops to
+0 of 25 in 2024 — the exact year calendar is fully reported. Grouping them
+under one "good year" check, as an earlier version of this module did, meant
+every school's housing showed as unreported the moment the newest year had
+no housing data at all, even though the rest of that row was fine.
 """
 
 import sqlite3
@@ -217,10 +227,21 @@ DIRECTORY_QUERY = """
 """
 
 CHARACTERISTICS_QUERY = """
-    SELECT unitid, year, calendar_system, oncampus_housing, dormitory_capacity,
-           religious_affiliation
+    SELECT unitid, year, calendar_system, religious_affiliation
     FROM institutional_characteristics
     WHERE calendar_system IS NOT NULL
+"""
+
+# Housing backfills separately from calendar/religious affiliation — checked
+# directly: calendar and religious affiliation report together (17/25 in
+# 2023, 25/25 every other year), but `oncampus_housing` follows its own
+# schedule and drops to 0/25 in 2024 while calendar that same year is fully
+# reported. Grouping them would have shown every school's housing as blank
+# in the newest year even though calendar was fine.
+HOUSING_QUERY = f"""
+    SELECT unitid, year, oncampus_housing, dormitory_capacity
+    FROM institutional_characteristics
+    WHERE oncampus_housing NOT IN {tuple(SENTINELS)}
 """
 
 RATIO_QUERY = """
@@ -239,22 +260,35 @@ FIELDS_QUERY = """
     GROUP BY unitid, cipcode
 """
 
+# No `year` column at all, let alone one to filter or backfill on — Wikidata
+# has whatever is on the page right now, not an annual survey's worth of
+# history. Joined on `wdt:P1771`, Wikidata's own IPEDS-UNITID property, by
+# `scripts/import_ipeds.py`'s `fetch_wikidata_trivia`.
+TRIVIA_QUERY = """
+    SELECT unitid, motto_la, motto_en, founded_year
+    FROM wikidata_trivia
+"""
+
 
 def load(conn: sqlite3.Connection, schools: list[School], year: int) -> dict:
     """One reference row per school, plus a locator map and top fields of study."""
     unitids = [s.unitid for s in schools]
     directory = _by_unitid_backfilled(conn, DIRECTORY_QUERY, unitids, year)
     characteristics = _by_unitid_backfilled(conn, CHARACTERISTICS_QUERY, unitids, year)
+    housing_data = _by_unitid_backfilled(conn, HOUSING_QUERY, unitids, year)
     ratios = _by_unitid_backfilled(conn, RATIO_QUERY, unitids, year)
     fields, fields_year = _top_fields(conn, unitids)
+    trivia = _by_unitid(conn, TRIVIA_QUERY, unitids)
 
     rows = []
     backfilled = []
     for school in schools:
         d = directory.get(school.unitid, {})
         c = characteristics.get(school.unitid, {})
+        h = housing_data.get(school.unitid, {})
         f = fields.get(school.unitid, {})
         r = ratios.get(school.unitid, {})
+        t = trivia.get(school.unitid, {})
 
         religious = c.get("religious_affiliation")
         religious_label = (
@@ -268,10 +302,12 @@ def load(conn: sqlite3.Connection, schools: list[School], year: int) -> dict:
         # None (not-reported) rather than False: `oncampus_housing` has no
         # real 0 in this sample, only 1 or the sentinel -1, so treating the
         # sentinel as falsy renders a school with unreported housing as
-        # having none. See SENTINELS's comment.
-        housing_raw = c.get("oncampus_housing")
-        housing = None if housing_raw in SENTINELS else housing_raw == 1
-        dormitory_capacity = c.get("dormitory_capacity")
+        # having none. See SENTINELS's comment. `h` is already backfilled to
+        # a year housing was actually reported (see HOUSING_QUERY) and, like
+        # location, shown silently — a bed count is as slow-changing as an
+        # address.
+        housing = h.get("oncampus_housing") == 1 if h else None
+        dormitory_capacity = h.get("dormitory_capacity")
         if dormitory_capacity in SENTINELS:
             dormitory_capacity = None
 
@@ -285,6 +321,8 @@ def load(conn: sqlite3.Connection, schools: list[School], year: int) -> dict:
         # still gets one.
         if characteristics_year is not None and characteristics_year != year:
             backfilled.append((school, characteristics_year))
+
+        motto = _motto(t.get("motto_la"), t.get("motto_en"))
 
         rows.append(
             {
@@ -309,6 +347,8 @@ def load(conn: sqlite3.Connection, schools: list[School], year: int) -> dict:
                 "religious": religious_label,
                 "student_faculty_ratio": r.get("student_faculty_ratio"),
                 "top_fields": f.get("top", []),
+                "founded_year": t.get("founded_year"),
+                "motto": motto,
             }
         )
 
@@ -446,6 +486,27 @@ def _by_unitid_backfilled(
         before = [r for r in group if r["year"] <= year]
         result[unitid] = exact or (before[-1] if before else group[0])
     return result
+
+
+def _by_unitid(conn: sqlite3.Connection, query: str, unitids: list[int]) -> dict:
+    """One row per school, no year involved — for `wikidata_trivia`, which
+    has none to filter or backfill on. See that query's own comment."""
+    frame = pl.read_database(query, conn).filter(pl.col("unitid").is_in(unitids))
+    return {r["unitid"]: r for r in frame.to_dicts()}
+
+
+def _motto(latin: str | None, english: str | None) -> str | None:
+    """Both, when Wikidata has both — a translation alone is only half the
+    fact, and the Latin alone leaves most readers guessing. Latin only is
+    marked as such; English only needs no mark, it reads as a motto either
+    way."""
+    if latin and english:
+        return f"{latin} — {english}"
+    if english:
+        return english
+    if latin:
+        return f"{latin} (Latin)"
+    return None
 
 
 # `directory` is the anchor table (TABLE, above), so a usable row there is

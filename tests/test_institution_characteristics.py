@@ -26,6 +26,9 @@ GEORGETOWN = 131496
 BROWN = 217156
 PRINCETON = 186131
 STANFORD = 243744
+HARVARD = 166027
+YALE = 130794
+VANDERBILT = 221999
 
 
 @pytest.fixture
@@ -70,17 +73,18 @@ def test_an_exact_year_is_not_marked_stale(conn):
     assert caltech["directory_is_stale"] is False
 
 
-def test_unreported_housing_reads_as_a_dash_not_no(conn):
+def test_housing_backfills_independently_from_calendar(conn):
     """`oncampus_housing` only ever takes 1 or the sentinel -1 in this sample
-    — no school reports a real 0. Caltech, MIT and Stanford all report -1 for
-    2024 while the rest of that row (calendar, control) is real data. Reading
-    the sentinel as falsy would render three residential research
-    universities as having no on-campus housing, which is absurd on its
-    face."""
+    — no school reports a real 0. All 25 schools report -1 for 2024 even
+    though `institutional_characteristics`'s calendar field that same year is
+    fine, so housing needs its own backfill rather than riding on calendar's.
+    Reading the sentinel as falsy, or leaving it blank because the row
+    "looked" current, would both misrepresent three residential research
+    universities as having no on-campus housing."""
     for unitid in (CALTECH, 166683, STANFORD):
         row = _row(conn, unitid, 2024)
-        assert row["housing"] is None
-        assert row["dormitory_capacity"] is None
+        assert row["housing"] is True
+        assert row["dormitory_capacity"]
 
 
 def test_reported_housing_still_reads_true_or_false(conn):
@@ -290,3 +294,37 @@ def test_highlights_is_empty_for_a_single_school(conn, year):
     schools = [s for s in all_schools(conn) if s.unitid == CALTECH]
     context = institution_characteristics.load(conn, schools, year)
     assert institution_characteristics.highlights(context) == []
+
+
+def test_founded_year_matches_the_school_charter(conn, year):
+    """Harvard (1636) is the oldest school in this sample by over a century —
+    the exact kind of fact this row exists to surface."""
+    harvard = _row(conn, HARVARD, year)
+    assert harvard["founded_year"] == 1636
+
+
+def test_motto_combines_latin_and_english_when_both_exist(conn, year):
+    """Yale's Wikidata entry carries both — showing only one is half the fact."""
+    yale = _row(conn, YALE, year)
+    assert yale["motto"] == "Lux et Veritas — Light and Truth"
+
+
+def test_motto_marks_latin_only_as_latin(conn, year):
+    """Harvard's Wikidata entry has no English translation on file."""
+    harvard = _row(conn, HARVARD, year)
+    assert harvard["motto"] == "Veritas (Latin)"
+
+
+def test_a_missing_motto_is_none_not_an_empty_string(conn, year):
+    """Vanderbilt has no motto property on Wikidata at all."""
+    vanderbilt = _row(conn, VANDERBILT, year)
+    assert vanderbilt["motto"] is None
+
+
+def test_motto_helper_prefers_english_alone_with_no_latin_tag():
+    assert institution_characteristics._motto(None, "Let there be light") == "Let there be light"
+    assert institution_characteristics._motto("Fiat Lux", None) == "Fiat Lux (Latin)"
+    assert institution_characteristics._motto(None, None) is None
+    assert (
+        institution_characteristics._motto("Veritas", "Truth") == "Veritas — Truth"
+    )

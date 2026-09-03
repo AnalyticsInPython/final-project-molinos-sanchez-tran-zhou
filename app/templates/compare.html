@@ -18,16 +18,6 @@
     {{ years[0] }} to {{ years[-1] }}{% endif %}.
   </p>
 
-  {% if highlights %}
-    {# Each line is computed from an area's own already-shown figures — see
-       e.g. financial_aid.highlights — not a separate editorial claim. #}
-    <ul class="highlights">
-      {% for line in highlights %}
-        <li><span class="highlight-mark" aria-hidden="true">&#10024;</span> {{ line }}</li>
-      {% endfor %}
-    </ul>
-  {% endif %}
-
   {% for section in sections %}
     <section class="area">
       <div class="area-head">
@@ -37,6 +27,17 @@
         {% elif section.year %}<span class="year">{{ section.source }} {{ section.year }}</span>{% endif %}
       </div>
       <p class="question">{{ section.area.QUESTION }}</p>
+      {% if highlights and section.area.KEY == "institution_characteristics" %}
+        {# Lives here, not as a page-top banner: institution characteristics
+           is this page's "who is this school, at a glance" area, and each
+           line is computed from another area's own already-shown figures
+           (see e.g. financial_aid.highlights) rather than a new claim. #}
+        <ul class="highlights">
+          {% for line in highlights %}
+            <li><span class="highlight-mark" aria-hidden="true">&#10024;</span> {{ line }}</li>
+          {% endfor %}
+        </ul>
+      {% endif %}
       {% if section.notices %}
         <ul class="notices">
           {% for notice in section.notices %}

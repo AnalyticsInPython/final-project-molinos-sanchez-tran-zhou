@@ -25,6 +25,14 @@ earn. Different agency, different API, but the same `unitid`, so it joins
 against everything else here with no crosswalk. It needs its own note on
 "year": its three fields are three different cohorts (see that function's
 docstring), not one collection year like the IPEDS pulls above.
+
+A third: Wikidata (`fetch_wikidata_trivia`), for founding year and motto —
+neither of which any federal survey collects, and both of which join on
+`unitid` with no crosswalk either, because Wikidata's own P1771 property IS
+the IPEDS UNITID. Matching by name instead of that ID is how "Hunter College"
+almost ended up in a query meant for Caltech during development — the two
+share nothing but both being colleges, and a fuzzy name match cannot tell
+them apart the way an ID join can't get it wrong.
 """
 
 import argparse
@@ -32,6 +40,7 @@ import json
 import os
 import sqlite3
 import urllib.error
+import urllib.parse
 import urllib.request
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
@@ -48,6 +57,7 @@ SCORECARD_FIELDS = [
     "latest.earnings.10_yrs_after_entry.median",
     "latest.aid.median_debt.completers.overall",
 ]
+WIKIDATA_SPARQL = "https://query.wikidata.org/sparql"
 DB_PATH = Path(__file__).resolve().parent.parent / "data" / "likeforlike.db"
 ENV_PATH = Path(__file__).resolve().parent.parent / ".env"
 
@@ -212,6 +222,57 @@ def fetch_scorecard(unitids: list[int], api_key: str) -> tuple[list[dict], str]:
 
     # Never persist the key, even to a gitignored local file.
     return rows, base_url.replace(api_key, "REDACTED")
+
+
+# `wdt:P1771` is the IPEDS UNITID, so the join needs no crosswalk — see the
+# module docstring. Motto is pulled in Latin and English separately (most
+# schools carry only one) rather than unfiltered, because an unfiltered pull
+# also returns the same motto transliterated into whatever other languages
+# Wikidata happens to have, one row each.
+WIKIDATA_QUERY = """
+SELECT ?unitid ?mottoLa ?mottoEn ?inception WHERE {{
+  VALUES ?unitid {{ {unitids} }}
+  ?item wdt:P1771 ?unitid.
+  OPTIONAL {{ ?item p:P1451 ?mLa. ?mLa ps:P1451 ?mottoLa. FILTER(LANG(?mottoLa) = "la") }}
+  OPTIONAL {{ ?item p:P1451 ?mEn. ?mEn ps:P1451 ?mottoEn. FILTER(LANG(?mottoEn) = "en") }}
+  OPTIONAL {{ ?item wdt:P571 ?inception. }}
+}}
+"""
+
+
+def fetch_wikidata_trivia(unitids: list[int]) -> tuple[list[dict], str]:
+    """Founding year and motto, from Wikidata — see the module docstring.
+
+    Wikidata's Query Service throttles or blocks requests with no identifying
+    User-Agent (its own usage policy asks for one, by name); the default
+    Python one is exactly the generic string that policy exists to catch.
+    """
+    values = " ".join(f'"{unitid}"' for unitid in unitids)
+    query = WIKIDATA_QUERY.format(unitids=values)
+    url = f"{WIKIDATA_SPARQL}?query={urllib.parse.quote(query)}"
+    request = urllib.request.Request(
+        url,
+        headers={
+            "Accept": "application/sparql-results+json",
+            "User-Agent": "LikeForLike-CollegeComparison/0.1 (MBAxMS Python Bootcamp project)",
+        },
+    )
+
+    with urllib.request.urlopen(request, timeout=60) as response:
+        payload = json.load(response)
+
+    rows = []
+    for binding in payload["results"]["bindings"]:
+        inception = binding.get("inception", {}).get("value")
+        rows.append(
+            {
+                "unitid": int(binding["unitid"]["value"]),
+                "motto_la": binding.get("mottoLa", {}).get("value"),
+                "motto_en": binding.get("mottoEn", {}).get("value"),
+                "founded_year": int(inception[:4]) if inception else None,
+            }
+        )
+    return rows, url
 
 
 def create_table(connection: sqlite3.Connection, name: str, rows: list[dict]) -> None:
@@ -412,6 +473,33 @@ def main() -> None:
             ),
         )
         print(f"  {'scorecard_outcomes':<34} {YEAR}  {len(rows):>6} rows  {covered:>2}/25 schools")
+
+    # Founding year and motto do not have a "year" the way a survey does —
+    # Wikidata just has whatever is current on the page. Tagged with YEAR
+    # anyway so `ingest_runs` has one row per table, same as everything else.
+    try:
+        rows, url = fetch_wikidata_trivia(UNITIDS)
+    except urllib.error.HTTPError as error:
+        print(f"  {'wikidata_trivia':<34} HTTP {error.code} — skipped")
+        rows = []
+
+    if rows:
+        create_table(connection, "wikidata_trivia", rows)
+        covered = len({r["unitid"] for r in rows})
+        connection.execute(
+            "INSERT INTO ingest_runs VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                "wikidata_trivia",
+                "institution_characteristics",
+                YEAR,
+                url,
+                len(rows),
+                covered,
+                datetime.now(UTC).isoformat(),
+                AREAS["institution_characteristics"],
+            ),
+        )
+        print(f"  {'wikidata_trivia':<34} {YEAR}  {len(rows):>6} rows  {covered:>2}/25 schools")
 
     connection.commit()
     connection.close()
