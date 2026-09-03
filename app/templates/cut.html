@@ -1,0 +1,106 @@
+{# One area broken out by a group of students, drawn beside everyone.
+   Rendered above the area's own template when a cut is active; `cutctx`
+   is the dict app/cuts.py::context builds. #}
+{% set c = cutctx %}
+<div class="figure cut">
+  <div class="cut-head">
+    <h3>{{ c.title }}</h3>
+    {% if c.emphasis is not none %}
+      <span class="you-pill">Tailored to you: {{ c.own_label }}</span>
+    {% endif %}
+    <a class="cut-clear" href="{{ section.cut_clear }}">Everyone only</a>
+  </div>
+  <p class="sub">{{ c.cut.note }}</p>
+
+  {% if c.notices %}
+    <ul class="notices">
+      {% for notice in c.notices %}
+        <li class="notice {{ notice.level }}">
+          <span class="notice-mark" aria-hidden="true">&#9432;</span>
+          <span>{{ notice.text }}</span>
+        </li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+
+  {% if c.figure %}
+    {% set f = c.figure %}
+    <svg viewBox="0 0 {{ f.width }} {{ f.height }}" role="img"
+         aria-label="{{ c.title }} for each school, each group beside the figure for all students">
+      {% for tick in f.ticks %}
+        <line x1="{{ tick.x }}" y1="{{ f.top }}" x2="{{ tick.x }}" y2="{{ tick.y_end }}"
+              stroke="#dce1d9" stroke-width="1"></line>
+        <text x="{{ tick.x }}" y="{{ f.axis_y }}" text-anchor="middle"
+              font-size="11" fill="#7b857e">{{ tick.label }}</text>
+      {% endfor %}
+      {% for bar in f.bars %}
+        <text x="{{ f.label_x }}" y="{{ bar.text_y }}" text-anchor="end"
+              font-size="12" fill="#17211d">{{ bar.name }}</text>
+        {% for dot in bar.dots if not dot.own %}
+          <circle cx="{{ dot.x }}" cy="{{ bar.y }}" r="4" fill="#a8791f" opacity=".8">
+            <title>{{ bar.name }} — {{ dot.label }}</title>
+          </circle>
+        {% endfor %}
+        <circle cx="{{ bar.x_total }}" cy="{{ bar.y }}" r="6" fill="none"
+                stroke="#17211d" stroke-width="1.8">
+          <title>{{ bar.name }} — everyone: {{ bar.total }}</title>
+        </circle>
+        {% for dot in bar.dots if dot.own %}
+          <circle cx="{{ dot.x }}" cy="{{ bar.y }}" r="6.5" fill="{{ bar.color }}"
+                  stroke="#fff" stroke-width="2">
+            <title>{{ bar.name }} — {{ dot.label }}</title>
+          </circle>
+        {% endfor %}
+        <text x="{{ bar.text_x }}" y="{{ bar.text_y }}" font-size="11" fill="#4f5a54">
+          {{ bar.text }}
+        </text>
+      {% endfor %}
+    </svg>
+    <p class="keys">
+      {% if c.emphasis is not none %}
+        <span><span class="dot" style="background: #17211d"></span> {{ c.own_label }}</span>
+        <span><span class="dot" style="background: #a8791f"></span> Other groups</span>
+      {% else %}
+        <span><span class="dot" style="background: #a8791f"></span> One group</span>
+      {% endif %}
+      <span><span class="dot" style="background: #fff; box-shadow: inset 0 0 0 1.5px #17211d"></span> Everyone</span>
+    </p>
+  {% endif %}
+
+  <div class="scroll">
+    <table>
+      <thead>
+        <tr>
+          <th>School</th>
+          <th>Everyone</th>
+          {% for code, label in c.columns %}
+            <th class="{{ 'you' if code == c.emphasis }}">{{ label }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in c.rows %}
+          <tr>
+            <td>
+              <span class="chip" style="background: {{ row.school.color }}"></span>
+              {{ row.school.name }}
+            </td>
+            <td>
+              {% if row.total is none %}<span class="missing">&mdash;</span>
+              {% else %}{{ row.total | percent(c.cut.places) }}
+                <span class="missing">({{ row.counts[99] | number }})</span>{% endif %}
+            </td>
+            {% for code, label in c.columns %}
+              <td class="{{ 'you' if code == c.emphasis }}">
+                {% if code in row.rates %}{{ row.rates[code] | percent(c.cut.places) }}
+                  <span class="missing">({{ row.counts[code] | number }})</span>
+                {% elif code in row.suppressed %}<span class="missing" title="Fewer than 30 {{ c.cut.count_noun }}; not drawn">under 30</span>
+                {% else %}<span class="missing" title="Not reported">&mdash;</span>{% endif %}
+              </td>
+            {% endfor %}
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>

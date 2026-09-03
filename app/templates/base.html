@@ -41,6 +41,25 @@
     .area { background: var(--surface); border: 1px solid var(--rule); border-radius: 4px; padding: 1.5rem; margin: 0 0 1.5rem; }
     .area-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: .75rem; margin-bottom: .25rem; }
     .year { font-size: .8rem; color: var(--ink-faint); }
+    /* "Show by" on an area card: a details menu at the head's right edge. */
+    .area-head .cuts { margin-left: auto; position: relative; align-self: center; font-size: .82rem; }
+    .area-head .cuts summary { list-style: none; cursor: pointer; padding: .3rem .6rem; border: 1px solid var(--rule); border-radius: 4px; background: var(--ground); color: var(--ink-soft); font-weight: 500; white-space: nowrap; }
+    .area-head .cuts summary::-webkit-details-marker { display: none; }
+    .area-head .cuts[open] summary { background: var(--surface); }
+    .area-head .cuts .menu { left: auto; right: 0; min-width: 11rem; }
+    .area-head .cuts .menu a { display: block; padding: .45rem .55rem; border-radius: 3px; text-decoration: none; color: var(--ink); }
+    .area-head .cuts .menu a:hover { background: var(--ground); }
+    .area-head .cuts .menu a.on { font-weight: 700; color: var(--accent); }
+    .tailor-bar { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; margin: 0 0 1.5rem; }
+    .tailor { display: inline-flex; align-items: center; gap: .45rem; padding: .45rem .85rem; border-radius: 4px; font-size: .9rem; font-weight: 600; text-decoration: none; background: var(--accent); color: #fff; border: 1px solid transparent; }
+    a.tailor:hover { filter: brightness(1.08); }
+    .tailor.on { background: #1c5f39; }
+    .tailor.muted { background: var(--ground); color: var(--ink-faint); border-color: var(--rule); }
+    .tailor-hint { font-size: .85rem; color: var(--ink-faint); }
+    .cut-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: .6rem; }
+    .cut-head .cut-clear { margin-left: auto; font-size: .8rem; color: var(--ink-faint); }
+    .you-pill { font-size: .75rem; font-weight: 600; padding: .15rem .5rem; border-radius: 999px; background: #e8f3ec; color: #1c5f39; border: 1px solid #a8ceb8; }
+    .cut th.you, .cut td.you { color: var(--accent); font-weight: 700; }
     .question { color: var(--ink-soft); margin: 0 0 1.25rem; }
     /* Data-quality notices. Stated above the charts, because a caveat read
        after the conclusion has already been drawn is not a caveat. */

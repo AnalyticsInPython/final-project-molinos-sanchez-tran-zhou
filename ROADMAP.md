@@ -144,9 +144,9 @@ pattern are identical to what `import_ipeds.py` already does.
 
 ## Cuts — breaking a metric out by who you are
 
-Proposed 3 Sep 2026. **Nothing here is built**; it is a design waiting for a decision.
-The by-race completion spread that was cut from retention the same day is the first case
-and the reason this section exists.
+Proposed 3 Sep 2026; the first two cuts and the tailoring button were built the same day
+(see *What is built* at the end of this section). The by-race completion spread that was
+cut from retention that morning is the first case and the reason this section exists.
 
 A *cut* is the same metric, at the same school, in the same year, reported for one group
 of students rather than all of them: the six-year completion rate for Black students at
@@ -291,15 +291,38 @@ both triggers.
 The Pell / direct-loan split lives in the same `outcome_measures` rows. It is not going
 back in as a headline. Whether it earns a chip is not a decision for now.
 
-### Order, by value per hour
+### What is built
 
-1. **Sex on selectiveness.** Same table, 25 of 25, widest audience. A day. Establishes
-   the chip, the URL parameter and the chart.
-2. **Race on completion.** The data we already had, rebuilt under rules 1, 4 and 5. Sets
-   the pattern for suppression and reference-from-same-table that every later cut copies.
-3. **Profile defaults.** After 1 and 2 exist, since it is only a default for a parameter
-   that already works.
-4. **Entrant type on completion** — after someone has explained Carnegie Mellon's 20%.
+The UI decision, taken 3 Sep 2026: each area card carries a **Show by** menu at the top
+right of its head, listing only the breakdowns that area's survey has; and the page
+carries one **Tailor data for me** button that applies, to every area that can use one,
+the cut matching what the profile holds — the reader's own group in colour, everyone as
+a hollow marker, the distance printed at the right. Both are plain links: `cut=<area>:
+<dimension>` for the menu, `tailor=1` for the button. The reader's race or sex is
+resolved from the profile on the server and never enters a URL, so a shared link tailors
+to whoever opens it. Snapshot view only; the trend view hides the menu and says so.
+
+- `app/cuts.py` — the `Cut` declaration, URL parsing and links, suppression, the chart.
+- **Admit rate by sex** on selectiveness, from the profile's gender.
+- **Six-year completion by race** on retention, from the profile's race, drawn against
+  the Graduation Rates survey's own total (rule 1) with international students shown only
+  as someone's own group (rule 5).
+- `tests/test_cuts.py`, including a route test that the tailored page never carries a
+  code for the reader in any link.
+
+What the button cannot use yet: SAT and ACT (the percentile columns exist in
+`admissions_requirements`, 2021–22 only, and would be a *marker* on a score band rather
+than a cut — a different chart, not yet drawn), intended major (not collected), income
+band (financial aid already draws all five; emphasising the reader's is a small change to
+Martin's chart, not done).
+
+### Order for the rest, by value per hour
+
+1. ~~**Sex on selectiveness.**~~ Built.
+2. ~~**Race on completion.**~~ Built.
+3. ~~**Profile defaults.**~~ Built, as the button.
+4. **Income band emphasis on financial aid** when tailored — the cheapest remaining win.
+5. **Entrant type on completion** — after someone has explained Carnegie Mellon's 20%.
 5. **Field of study on earnings** — after intended major is on the questionnaire. The
    biggest payoff and the most work, because it is program-level rows rather than one
    more column.
@@ -363,7 +386,7 @@ Someone has to choose. Listed with a recommendation, not a decision.
 | Areas as a dropdown or a plain list? (PR #5 removes the dropdown) | Unresolved. Rebecca's PR is open against a dropdown that was explicitly asked for. |
 | Should profiles have a password? | **Yes, before the demo.** See below. |
 | Which tuition type for a signed-out user? | Out-of-state, and say so. It is the figure that is wrong for fewer people. |
-| Does a profile apply a cut without being asked? | **Yes, visibly** — labelled, one click to remove, the removal remembered. Never for *prefer not to say*. See [Cuts](#cuts--breaking-a-metric-out-by-who-you-are). |
+| Does a profile apply a cut without being asked? | **Decided 3 Sep:** only when the reader presses *Tailor data for me*; then labelled, one click to stop. Never for *prefer not to say*. See [Cuts](#cuts--breaking-a-metric-out-by-who-you-are). |
 | Does the comparison screen ask for income up front? | Already answered by showing all five bands, but never decided deliberately. |
 
 ---

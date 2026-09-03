@@ -25,6 +25,28 @@
     {{ years[0] }} to {{ years[-1] }}{% endif %}.
   </p>
 
+  {# "Tailor data for me": every area that has a cut for something the profile
+     holds draws it with the reader's own group emphasised. Nothing personal
+     goes in the URL; the server reads the profile. #}
+  <div class="tailor-bar">
+    {% if tailor.state == "signin" %}
+      <a class="tailor" href="/profile/new">Tailor data for me</a>
+      <span class="tailor-hint">Needs a profile with your sex or race on it.</span>
+    {% elif tailor.state == "empty" %}
+      <a class="tailor muted" href="/profile">Tailor data for me</a>
+      <span class="tailor-hint">Add your sex or race to your profile and the areas that report by them will show your group.</span>
+    {% elif tailor.state == "trend" %}
+      <span class="tailor muted">Tailor data for me</span>
+      <span class="tailor-hint">Available on the single-year view.</span>
+    {% elif tailor.state == "on" %}
+      <a class="tailor on" href="{{ tailor.href }}">Tailored to you &middot; stop</a>
+      <span class="tailor-hint">Using: {{ tailor.signals | join(", ") }}.</span>
+    {% else %}
+      <a class="tailor" href="{{ tailor.href }}">Tailor data for me</a>
+      <span class="tailor-hint">Uses your profile's {{ tailor.signals | join(" and ") | lower }} where an area reports by it.</span>
+    {% endif %}
+  </div>
+
   {% for section in sections %}
     <section class="area">
       <div class="area-head">
@@ -32,6 +54,21 @@
         <h2>{{ section.area.TITLE }}</h2>
         {% if section.mode == "trend" %}<span class="year">{{ section.source }} {{ years[0] }}&ndash;{{ years[-1] }}</span>
         {% elif section.year %}<span class="year">{{ section.source }} {{ section.year }}</span>{% endif %}
+        {% if section.cut_menu %}
+          {# "Show by": the breakdowns this area's survey carries. Plain links,
+             so it works without JavaScript and the URL is the whole state. #}
+          <details class="cuts">
+            <summary>{% if section.cut %}By {{ section.cut.cut.label | lower }}{% else %}Show by{% endif %} <span aria-hidden="true">&#9662;</span></summary>
+            <ul class="menu" role="list">
+              {% for item in section.cut_menu %}
+                <li><a href="{{ item.href }}" class="{{ 'on' if item.on }}">{{ item.label }}</a></li>
+              {% endfor %}
+              {% if section.cut %}
+                <li><a href="{{ section.cut_clear }}">Everyone only</a></li>
+              {% endif %}
+            </ul>
+          </details>
+        {% endif %}
       </div>
       <p class="question">{{ section.area.QUESTION }}</p>
       {% if highlights and section.area.KEY == "institution_characteristics" %}
@@ -61,6 +98,9 @@
         {% if section.mode == "trend" %}
           {% include "trend.html" %}
         {% else %}
+          {% if section.cut %}
+            {% with cutctx = section.cut %}{% include "cut.html" %}{% endwith %}
+          {% endif %}
           {% include section.area.TEMPLATE %}
         {% endif %}
       {% endwith %}

@@ -29,7 +29,7 @@ from fastapi import FastAPI, Form, Query, Request
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 
-from app import areas, env, offers, profiles
+from app import areas, cuts, env, offers, profiles
 from app.db import connect, latest_year, series_ends, years_available
 from app.format import money, number, percent
 from app.notices import for_area
@@ -114,9 +114,18 @@ def compare(
     area: Annotated[list[str] | None, Query()] = None,
     color: Annotated[list[str] | None, Query()] = None,
     year: Annotated[list[int] | None, Query()] = None,
+    cut: Annotated[list[str] | None, Query()] = None,
+    tailor: Annotated[str | None, Query()] = None,
 ):
     if not school:
         return RedirectResponse("/")
+
+    # Cuts: `cut=<area>:<dimension>` breaks one area out by a group the survey
+    # reports; `tailor=1` lets the profile choose, with the reader's own group
+    # emphasised. The reader's race or sex never enters the URL — see app/cuts.py.
+    explicit = cuts.parse(cut)
+    tailoring = tailor == "1"
+    params = list(request.query_params.multi_items())
 
     keys = [k for k in (area or []) if k in areas.BY_KEY] or [a.KEY for a in areas.ALL]
     # The comparison itself never needs a profile; this is only so the nav can
@@ -155,6 +164,7 @@ def compare(
             pinned = wanted[0] if len(wanted) == 1 and wanted[0] in available else None
             showing = pinned or latest_year(conn, module.TABLE)
             trending = bool(shown) and hasattr(module, "trend")
+            cut_context = None
 
             if trending:
                 context = module.trend(conn, chosen, shown)
@@ -164,6 +174,11 @@ def compare(
                 notices = context.get("notices", [])
             else:
                 context = module.load(conn, chosen, showing)
+                selection = cuts.choose(
+                    module, explicit.get(module.KEY), profile if tailoring else None
+                )
+                if selection:
+                    cut_context = module.cut(conn, chosen, showing, selection)
                 notices = for_area(
                     showing,
                     context.get("notices", []),
@@ -188,8 +203,34 @@ def compare(
                     # TABLE comes from a different agency's API entirely, and
                     # crediting it to IPEDS would be wrong, not just vague.
                     "source": getattr(module, "SOURCE", "IPEDS"),
+                    "cut": cut_context,
+                    # The "Show by" menu: one link per dimension this area's
+                    # survey carries, snapshot view only.
+                    "cut_menu": [
+                        {
+                            "label": c.label,
+                            "href": cuts.link(params, module.KEY, c.key),
+                            "on": bool(cut_context) and cut_context["cut"].key == c.key,
+                        }
+                        for c in getattr(module, "CUTS", {}).values()
+                    ]
+                    if not trending
+                    else [],
+                    "cut_clear": cuts.link(params, module.KEY, None),
                 }
             )
+
+        # The "Tailor data for me" button. What it can use is whatever the
+        # profile holds that some area on the page has a cut for.
+        signals = cuts.signals(modules, profile) if profile else []
+        if profile is None:
+            tailor_state = "signin"
+        elif shown:
+            tailor_state = "trend"
+        elif not signals:
+            tailor_state = "empty"
+        else:
+            tailor_state = "on" if tailoring else "off"
 
     return templates.TemplateResponse(
         request,
@@ -200,6 +241,11 @@ def compare(
             "years": shown,
             "profile": profile,
             "highlights": highlights,
+            "tailor": {
+                "state": tailor_state,
+                "signals": signals,
+                "href": cuts.tailor_link(params, not tailoring),
+            },
         },
     )
 
@@ -255,9 +301,7 @@ def profile_page(request: Request):
                             income_band=profile.income_bracket,
                             home_state=profile.home_state,
                         )
-                    offer_rows.append(
-                        {"school": school, "offer": offer, "comparison": comparison}
-                    )
+                    offer_rows.append({"school": school, "offer": offer, "comparison": comparison})
 
     with connect() as conn:
         return templates.TemplateResponse(
@@ -469,9 +513,7 @@ def update_scores(
 
 
 @app.post("/profile/schools")
-def add_shortlist_school(
-    request: Request, unitid: Annotated[int, Form()]
-):
+def add_shortlist_school(request: Request, unitid: Annotated[int, Form()]):
     username = _current_username(request)
     if username:
         with profiles.connect() as pconn:

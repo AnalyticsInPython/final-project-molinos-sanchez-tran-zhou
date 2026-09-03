@@ -26,6 +26,7 @@ import sqlite3
 
 import polars as pl
 
+from app import codes, cuts
 from app.format import number, percent
 from app.notices import coverage_notices
 from app.schools import School
@@ -72,6 +73,33 @@ TREND_QUERY = """
 # Missing and not-applicable. Unlike net price, no count here is meaningfully
 # negative — you cannot receive minus one application.
 SENTINELS = [-1, -2, -3]
+
+# The one breakdown this survey carries: applications and admits by sex. Same
+# table as the headline, so "everyone" is the same published total the rest
+# of the area stands on. Carnegie Mellon admits 9.8% of men and 14.7% of
+# women (2024); Brown runs the other way.
+CUT_QUERY = """
+    SELECT unitid, sex, number_applied, number_admitted
+    FROM admissions_enrollment
+    WHERE year = {year} AND sex IN (1, 2, 99)
+"""
+
+CUTS = {
+    "sex": cuts.Cut(
+        key="sex",
+        label="Sex",
+        metric="Admit rate",
+        groups=dict(codes.SEX),
+        profile_field="gender",
+        places=1,
+        count_noun="applicants",
+        note=(
+            "Same survey as the figures below. Everyone is the school's published total, "
+            "not the two added together: IPEDS added further sex codes from 2022 and the "
+            "parts no longer sum to the total at every school."
+        ),
+    ),
+}
 
 
 def load(conn: sqlite3.Connection, schools: list[School], year: int) -> dict:
@@ -134,10 +162,32 @@ def load(conn: sqlite3.Connection, schools: list[School], year: int) -> dict:
         "rows": rows,
         "rates_chart": _rates_chart(rows),
         "volume_chart": _volume_chart(rows),
-        "notices": coverage_notices(
-            missing_all, missing_some, subject=SUBJECT, series=True
-        ),
+        "notices": coverage_notices(missing_all, missing_some, subject=SUBJECT, series=True),
     }
+
+
+def cut(
+    conn: sqlite3.Connection, schools: list[School], year: int, selection: cuts.Selection
+) -> dict:
+    """Admit rate by sex, beside the published total."""
+    ids = {s.unitid for s in schools}
+    records = [
+        r
+        for r in pl.read_database(CUT_QUERY.format(year=int(year)), conn).to_dicts()
+        if r["unitid"] in ids
+        and r["number_applied"] not in SENTINELS
+        and r["number_admitted"] not in SENTINELS
+        and (r["number_applied"] or 0) > 0
+    ]
+    return cuts.context(
+        CUTS[selection.dimension],
+        schools,
+        records,
+        code_field="sex",
+        value=lambda r: r["number_admitted"] / r["number_applied"],
+        count=lambda r: r["number_applied"],
+        emphasis=selection.emphasis,
+    )
 
 
 def _empty(schools: list[School]) -> dict:
@@ -269,9 +319,7 @@ def trend(conn: sqlite3.Connection, schools: list[School], years: list[int]) -> 
     20% and an application count in the tens of thousands share no axis, and
     forcing them onto one would flatten whichever lost.
     """
-    frame = pl.read_database(
-        TREND_QUERY.format(first=int(min(years)), last=int(max(years))), conn
-    )
+    frame = pl.read_database(TREND_QUERY.format(first=int(min(years)), last=int(max(years))), conn)
     if frame.is_empty():
         return {
             "panels": [],
@@ -328,16 +376,12 @@ def trend(conn: sqlite3.Connection, schools: list[School], years: list[int]) -> 
 
     missing_all = [s for s in schools if s.unitid not in reported]
     missing_some = [
-        s
-        for s in schools
-        if s.unitid in reported and any((s.unitid, y) not in seen for y in years)
+        s for s in schools if s.unitid in reported and any((s.unitid, y) not in seen for y in years)
     ]
 
     return {
         "panels": [p for p in panels if p["chart"]],
-        "notices": coverage_notices(
-            missing_all, missing_some, subject=SUBJECT, series=True
-        ),
+        "notices": coverage_notices(missing_all, missing_some, subject=SUBJECT, series=True),
     }
 
 

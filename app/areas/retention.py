@@ -53,6 +53,7 @@ import sqlite3
 
 import polars as pl
 
+from app import codes, cuts
 from app.format import percent
 from app.notices import coverage_notices
 from app.schools import School
@@ -157,6 +158,58 @@ def _attrition(record: dict | None) -> float | None:
 def _clean(frame: pl.DataFrame, column: str = "rate") -> pl.DataFrame:
     return frame.with_columns(
         pl.when(pl.col(column).is_in(SENTINELS)).then(None).otherwise(pl.col(column)).alias(column)
+    )
+
+
+# Six-year completion by race comes from a different survey — the Graduation
+# Rates component, 150% of normal time — so the cut carries that survey's own
+# total as "everyone" rather than the outcome_measures figure in the table.
+# International students (8) are filed there regardless of race and are drawn
+# only when the profile says Nonresident; "unknown" (9) is never drawn.
+RACE_CUT_QUERY = """
+    SELECT unitid, race, completion_rate_150pct AS rate, cohort_adj_150pct AS cohort
+    FROM grad_rates
+    WHERE year = {year} AND subcohort = 99 AND sex = 99
+"""
+
+CUTS = {
+    "race": cuts.Cut(
+        key="race",
+        label="Race",
+        metric="Six-year completion",
+        groups={c: codes.RACE[c] for c in codes.RACE_ORDER if c not in codes.NOT_AN_IDENTITY},
+        own_only={8: codes.RACE[8]},
+        profile_field="race",
+        places=0,
+        count_noun="students in the cohort",
+        note=(
+            "From the IPEDS Graduation Rates survey: completion within six years for "
+            "first-time, full-time students. A different survey from the outcome measures "
+            "below, so everyone here is that survey's own total rather than the six-year "
+            "figure in the table. Groups under 30 students are not drawn."
+        ),
+    ),
+}
+
+
+def cut(
+    conn: sqlite3.Connection, schools: list[School], year: int, selection: cuts.Selection
+) -> dict:
+    """Six-year completion by race, beside that survey's own total."""
+    ids = {s.unitid for s in schools}
+    records = [
+        r
+        for r in pl.read_database(RACE_CUT_QUERY.format(year=int(year)), conn).to_dicts()
+        if r["unitid"] in ids and r["rate"] is not None and r["rate"] >= 0
+    ]
+    return cuts.context(
+        CUTS[selection.dimension],
+        schools,
+        records,
+        code_field="race",
+        value=lambda r: r["rate"],
+        count=lambda r: r["cohort"] or 0,
+        emphasis=selection.emphasis,
     )
 
 

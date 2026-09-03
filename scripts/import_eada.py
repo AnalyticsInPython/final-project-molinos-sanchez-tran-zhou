@@ -139,8 +139,10 @@ def main() -> None:
                 "If I play a sport, how big a part of this place is that?",
             ),
         )
-        print(f"  EADA {file_year - 1}-{file_year}  ->  year {file_year - 1}"
-              f"  {len(rows):>3} rows  {covered:>2}/25 schools")
+        print(
+            f"  EADA {file_year - 1}-{file_year}  ->  year {file_year - 1}"
+            f"  {len(rows):>3} rows  {covered:>2}/25 schools"
+        )
 
     connection.commit()
     connection.close()
