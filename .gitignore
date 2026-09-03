@@ -28,3 +28,7 @@ data/cache/
 *.db-wal
 *.db-shm
 data/
+
+# Output of the local watermark-removal tool, which writes a sibling copy
+# next to whatever it inspects. Never the file we want in the repo.
+*.cleaned.*
