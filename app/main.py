@@ -65,6 +65,17 @@ SPANS = [
     ("all", "All available years"),
 ]
 
+# Which area leads the page, per the stage the profile named. The
+# questionnaire promises the stage "decides what leads the comparison":
+# someone still deciding where to apply is asking whether they can get in,
+# someone holding offers is asking what they will pay. `choosing` names
+# financial aid, which is already first in areas.ALL — written down anyway,
+# so the promise is kept by the code rather than by a coincidence of order.
+STAGE_LEADS = {
+    "applying": "selectiveness",
+    "choosing": "financial_aid",
+}
+
 # No password, so no signing library — the cookie is just the username, and
 # that tradeoff was made deliberately (see app/profiles.py).
 PROFILE_COOKIE = "profile"
@@ -128,7 +139,8 @@ def compare(
     tailored = cuts.parse_tailor(tailor)
     params = list(request.query_params.multi_items())
 
-    keys = [k for k in (area or []) if k in areas.BY_KEY] or [a.KEY for a in areas.ALL]
+    picked = [k for k in (area or []) if k in areas.BY_KEY]
+    keys = picked or [a.KEY for a in areas.ALL]
     # The comparison itself never needs a profile; this is only so the nav can
     # say who is signed in instead of offering to sign them up again.
     signed_in = _current_username(request)
@@ -153,6 +165,13 @@ def compare(
         # early. Per-area windows would stretch both to the same width and
         # hide exactly that.
         modules = [areas.BY_KEY[key] for key in keys]
+        # The profile's stage decides what leads, but only when the reader
+        # named no area: an explicit `area=` list is an order they chose, and
+        # it outranks anything the profile implies. Stable sort, so the rest
+        # follow in their usual order behind whichever one is pulled forward.
+        lead = STAGE_LEADS.get(profile.stage) if profile and not picked else None
+        if lead:
+            modules.sort(key=lambda module: lead != module.KEY)
         shown = wanted if len(wanted) > 1 else []
 
         sections = []
@@ -185,7 +204,15 @@ def compare(
                     showing,
                     context.get("notices", []),
                     subject=getattr(module, "SUBJECT", module.TITLE.lower()),
+                    # Same source the card is credited to below: a staleness
+                    # notice that blames IPEDS for a College Scorecard gap is
+                    # wrong about who publishes what.
+                    source=getattr(module, "SOURCE", "IPEDS"),
                     series_ends=series_ends(conn, module.TABLE),
+                    # One year held is not a series that stopped — After
+                    # graduation is a single pooled release, and "not loaded
+                    # yet" would describe a year that does not exist.
+                    single_release=len(available) == 1,
                 )
                 # Only a snapshot, and only with something to contrast: a
                 # trend already tells its own story in the lines, and a
