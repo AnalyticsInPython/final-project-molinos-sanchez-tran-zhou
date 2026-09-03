@@ -1,4 +1,15 @@
-{# Two figures: the gap (primary), then where in the income scale it opens. #}
+{# Two figures: the gap (primary), then where in the income scale it opens.
+   Tailored (context.own_band / context.stickers, merged in by
+   financial_aid.tailor) the reader's own band is marked on both the chart and
+   the table, and the published price their home state qualifies them for is
+   listed beside — never subtracted from — what families actually paid. #}
+
+{% if context.band_sentence %}
+  <p class="notice info" style="align-items: center">
+    <span class="you-pill">Tailored to you: {{ context.own_band_label }}</span>
+    <span>{{ context.band_sentence }}</span>
+  </p>
+{% endif %}
 
 {% if context.range_chart %}
   {% set c = context.range_chart %}
@@ -27,12 +38,23 @@
         <circle cx="{{ bar.x_low }}" cy="{{ bar.y }}" r="5.5" fill="#6da7ec" stroke="#fff" stroke-width="2">
           <title>{{ bar.name }} — lowest income band: {{ bar.low | money }}</title>
         </circle>
+        {% if bar.x_own is not none %}
+          {# The reader's own band, in the school's colour so it reads against
+             the chip beside that school's name in the table below. #}
+          <circle cx="{{ bar.x_own }}" cy="{{ bar.y }}" r="6.5"
+                  fill="{{ bar.color }}" stroke="#fff" stroke-width="2">
+            <title>{{ bar.name }} — {{ context.own_band_label }}: {{ bar.own | money }}</title>
+          </circle>
+        {% endif %}
         <text x="{{ bar.spread_x }}" y="{{ bar.label_y }}" font-size="11" fill="#7b857e">{{ bar.spread | money }}</text>
       {% endfor %}
     </svg>
     <p class="keys">
       <span><span class="dot" style="background: #6da7ec"></span> Lowest income band</span>
       <span><span class="dot" style="background: #184f95"></span> Highest income band</span>
+      {% if context.own_band %}
+        <span><span class="dot" style="background: #17211d"></span> Your band, {{ context.own_band_label }}</span>
+      {% endif %}
       <span>Figure at right is the spread.</span>
     </p>
   </div>
@@ -93,7 +115,13 @@
       <tr>
         <th>School</th>
         <th class="metric-head">Spread</th>
-        {% for label in context.headers.values() %}<th>{{ label }}</th>{% endfor %}
+        {# Styled inline rather than by class: the .you rule in base.html is
+           scoped to the cut partial, and this table is not one. #}
+        {% for code, label in context.headers.items() %}
+          <th {% if code == context.own_band %}style="color: var(--accent)"{% endif %}>
+            {{ label }}{% if code == context.own_band %} &middot; you{% endif %}
+          </th>
+        {% endfor %}
       </tr>
     </thead>
     <tbody>
@@ -108,7 +136,7 @@
             {% else %}{{ row.spread | money }}{% endif %}
           </td>
           {% for value in row.bands %}
-            <td>
+            <td {% if loop.index == context.own_band %}style="color: var(--accent); font-weight: 700"{% endif %}>
               {% if value is none %}<span class="missing" title="Not reported">&mdash;</span>
               {% else %}{{ value | money }}{% endif %}
             </td>
@@ -118,6 +146,69 @@
     </tbody>
   </table>
 </div>
+
+{% if context.stickers %}
+  {% set s = context.stickers %}
+  <div class="figure" style="margin-top: 1.75rem">
+    <div class="cut-head">
+      <h3>The published price that applies to you</h3>
+      <span class="you-pill">Tailored to you: {{ context.home_state }}</span>
+    </div>
+    <p class="sub">
+      Tuition and fees as published for {{ s.year }}, on the residency your home state
+      gives you. Where a school charges by residency, the price you would not pay is
+      named beside it; where it charges everyone the same, the line says so.
+    </p>
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>School</th>
+            <th class="metric-head">Published tuition and fees, {{ s.year }}</th>
+            {% if context.own_band %}
+              <th>What families at {{ context.own_band_label }} paid, {{ context.net_price_year }}</th>
+            {% endif %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in s.rows %}
+            <tr>
+              <td>
+                <span class="chip" style="background: {{ row.school.color }}"></span>
+                {{ row.school.name }}
+              </td>
+              <td class="metric stack" style="text-align: right">
+                {% if row.sticker is none %}<span class="missing" title="Not reported">&mdash;</span>
+                {% else %}{{ row.sticker | money }}{% endif %}
+                <span class="sub">
+                  {{ row.basis }}, {{ s.year }}{% if row.alternative is not none %}
+                    &middot; {{ "out-of-state" if row.in_state else "in-state" }}
+                    is {{ row.alternative | money }}{% endif %}
+                </span>
+              </td>
+              {% if context.own_band %}
+                <td class="stack" style="text-align: right">
+                  {% if row.net_price is none %}<span class="missing" title="Not reported">&mdash;</span>
+                  {% else %}{{ row.net_price | money }}{% endif %}
+                  <span class="sub">after grant aid, {{ context.net_price_year }}</span>
+                </td>
+              {% endif %}
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="note">
+      The two columns are different years and different quantities, and neither one is
+      the other minus something. The published figure is tuition and fees for
+      {{ s.year }} before any aid; the net price is what families at your income
+      actually paid across a whole year at
+      {% if context.net_price_year %}{{ context.net_price_year }}{% endif %} prices,
+      after grant aid and including housing and books. Subtracting one from the other
+      would mix two surveys and two years into a number nobody published.
+    </p>
+  </div>
+{% endif %}
 
 <p class="note">
   Family income bands: {% for label in context.bands.values() %}{{ label }}{% if not loop.last %}; {% endif %}{% endfor %}.

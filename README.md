@@ -1,4 +1,4 @@
-# Like for Like
+# In League
 
 Final project for the MBAxMS Python Bootcamp (Fall 2026).
 
@@ -13,13 +13,19 @@ family's income, and whether it does better than the schools it resembles.
 
 ## Status
 
-Four areas wired in — **student financial aid**, **selectiveness**, **enrollment**
-(race/ethnicity, gender, international share), and **institution characteristics** (locator
-map, founding year and motto from Wikidata) — over a FastAPI app with a searchable school
-picker. A fifth, **after graduation** (post-grad earnings and debt via College Scorecard), is
-built and tested but deliberately not wired in — see `app/areas/__init__.py` for why. The
-ingest pulls a range of years per endpoint, and each area shows the newest year it actually
-has, which is not the same year for every area.
+Seven areas wired in — **student financial aid** (net price by income band),
+**selectiveness**, **retention and graduation**, **after graduation** (post-grad earnings and
+debt via College Scorecard), **enrollment** (race/ethnicity, gender, international share),
+**athletics** (participation and spending, from EADA rather than IPEDS), and **institution
+characteristics** (locator map, founding year and motto from Wikidata) — over a FastAPI app
+with a searchable school picker. A profile is optional on top of that: a questionnaire asks
+for scores, an income band, a home state and where someone is in the process, and the answers
+decide which area leads the page and how each one is broken down. Every card carries a **Show
+by** menu that redraws its metric for one group beside everyone, and, for a signed-in reader,
+a **Tailor data for me** button that lets the profile pick that group — the reader's own race
+or sex never enters the URL, so a shared link tailors to whoever opens it. The ingest pulls a
+range of years per endpoint, and each area shows the newest year it actually has, which is not
+the same year for every area.
 
 ## Setup
 

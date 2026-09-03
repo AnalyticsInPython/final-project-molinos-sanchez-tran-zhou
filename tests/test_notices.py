@@ -2,7 +2,9 @@
 
 These guard wording as much as logic, because the wording is the feature. A
 notice that says "out of date" and stops has thrown away the true and useful
-half — that a stale figure is a bad quote and still a good comparison.
+half — that a stale figure is a bad quote and still a good comparison. Two
+of them guard facts rather than tone: which agency published the figure, and
+whether a newer year could exist at all.
 """
 
 from app.notices import (
@@ -59,6 +61,61 @@ def test_our_own_stale_ingest_does_not_blame_the_survey():
 def test_the_honest_branch_is_the_default():
     """An area has to assert its series ended; it is not assumed."""
     assert "newer years" in age_notice(2022, subject="x", as_of=2026).text
+
+
+def test_the_source_is_the_callers_to_name():
+    """Every branch that names an agency takes it from the area. The default
+    is IPEDS because thirteen of the fourteen ingest tables are."""
+    ours = age_notice(2021, subject="athletics", as_of=2026, source="EADA")
+    assert "EADA publishes newer years" in ours.text
+    assert "IPEDS" not in ours.text
+
+    theirs = age_notice(2021, subject="athletics", as_of=2026, source="EADA", series_ends=True)
+    assert "most recent EADA publishes" in theirs.text
+    assert "IPEDS" not in theirs.text
+
+    assert "IPEDS publishes newer years" in age_notice(2021, subject="x", as_of=2026).text
+
+
+def test_a_pooled_release_says_what_the_figures_are_not_what_was_skipped():
+    """After graduation holds one year because the Scorecard pools several
+    entry cohorts into one release, not because an ingest stopped early.
+    Saying "this build has not loaded" newer years names a year that does
+    not exist and blames the wrong side for it."""
+    notice = age_notice(
+        2021,
+        subject="post-graduation earnings",
+        as_of=2026,
+        source="College Scorecard",
+        single_release=True,
+    )
+    assert notice.level == "warn"
+    assert "5 years old" in notice.text, "the age itself is still true and still warned about"
+    assert "pools several entry cohorts" in notice.text
+    assert "no newer year to load" in notice.text
+    assert "has not loaded" not in notice.text
+    assert "IPEDS" not in notice.text
+
+
+def test_a_pooled_release_inside_the_stale_boundary_is_context():
+    notice = age_notice(
+        2023,
+        subject="post-graduation earnings",
+        as_of=2026,
+        source="College Scorecard",
+        single_release=True,
+    )
+    assert notice.level == "info"
+    assert "2023" in notice.text
+    assert "no newer year to load" in notice.text
+
+
+def test_an_ended_series_outranks_a_single_release():
+    """A one-year table with an empty year recorded above it is the survey
+    saying it stops there, which is a different sentence."""
+    notice = age_notice(2021, subject="x", as_of=2026, series_ends=True, single_release=True)
+    assert "most recent IPEDS publishes" in notice.text
+    assert "pools" not in notice.text
 
 
 def test_the_stale_boundary_is_where_it_says_it_is():
@@ -123,6 +180,21 @@ def test_age_is_stated_before_coverage():
 
 def test_fresh_data_with_full_coverage_produces_no_notices():
     assert for_area(2026, [], subject="net price", as_of=2026) == []
+
+
+def test_for_area_hands_the_source_and_the_pooling_through():
+    """The route knows both — it holds the area module and the connection —
+    and this is the only path the page's freshness notice takes."""
+    (age,) = for_area(
+        2021,
+        [],
+        subject="post-graduation earnings",
+        as_of=2026,
+        source="College Scorecard",
+        single_release=True,
+    )
+    assert "College Scorecard pools several entry cohorts" in age.text
+    assert "IPEDS" not in age.text
 
 
 def test_notice_is_immutable():
