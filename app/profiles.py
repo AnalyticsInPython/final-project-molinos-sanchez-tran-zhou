@@ -11,12 +11,22 @@ Lives apart from `app/db.py` on purpose. That module opens
 profile is the first thing in this app that is actually state, so it gets its
 own file, in `data/profiles.db`.
 
-No password. A profile is a username in a cookie, nothing more — a
-deliberate choice for a class project comparing public data, not a system
-guarding anything a stranger couldn't already ask for by name.
+A passphrase is optional. The profile started as a username in a cookie and
+nothing more, which was defensible when it held a shortlist and a test score;
+it now holds race, income, and actual aid letters, and a username alone should
+not open that. So a profile may carry a salted `hashlib.scrypt` hash, checked
+on the way in — see `passphrase_opens`. A profile without one behaves exactly
+as it did before, because every profile saved before this existed has none.
+
+The cookie itself is still an unsigned username. That is a known limit, not an
+oversight: the passphrase decides who may *obtain* the cookie, and hardening
+the cookie itself is a separate change.
 """
 
+import hashlib
+import hmac
 import re
+import secrets
 import sqlite3
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -82,7 +92,29 @@ ADDED_COLUMNS = {
     "race": "INTEGER",
     "gender": "INTEGER",
     "stage": "TEXT",
+    # Salt and hash together in one self-describing string; see
+    # `hash_passphrase`. NULL — the value every existing row gets when this
+    # column is added — means "no passphrase", which is why nothing breaks.
+    "passphrase_hash": "TEXT",
 }
+
+# scrypt work factors, stored beside each hash so a hash made today still
+# verifies if these change. n = 2**14 is the interactive parameter set from
+# the scrypt paper and needs 128 * r * n = 16 MB, which fits under the 32 MB
+# ceiling `hashlib.scrypt` applies by default (maxmem=0); n = 2**15 raises
+# "memory limit exceeded" instead, so this is a real bound rather than a
+# taste. Checked: one hash takes well under a tenth of a second here.
+SCRYPT_N = 2**14
+SCRYPT_R = 8
+SCRYPT_P = 1
+SALT_BYTES = 16
+KEY_BYTES = 32
+
+# Short enough that a person will actually set one, long enough to be worth
+# storing. The cap is there so a hand-posted form cannot hand scrypt a
+# megabyte of input to chew on.
+MIN_PASSPHRASE = 8
+MAX_PASSPHRASE = 200
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS profiles (
@@ -165,6 +197,10 @@ class Profile:
     race: int | None = None
     gender: int | None = None
     stage: str | None = None
+    # Whether a passphrase is set, never the hash itself. The hash has no
+    # business in a template context, and the page only ever needs to know
+    # which of the two things to say about this profile.
+    has_passphrase: bool = False
 
     @property
     def name(self) -> str:
@@ -210,6 +246,7 @@ def get(conn: sqlite3.Connection, username: str) -> Profile | None:
         race=row["race"],
         gender=row["gender"],
         stage=row["stage"],
+        has_passphrase=bool(row["passphrase_hash"]),
     )
 
 
@@ -226,6 +263,129 @@ def get_or_create(conn: sqlite3.Connection, username: str) -> Profile:
     )
     conn.commit()
     return get(conn, username)
+
+
+def clean_passphrase(value: str | None) -> str | None:
+    """A typed passphrase, or None when the field was left blank.
+
+    Deliberately does *not* trim or normalise a passphrase that has content:
+    a secret must hash to the same bytes the next time the same person types
+    the same thing, and quietly stripping a character they meant to include
+    would lock them out of their own profile. A field holding only whitespace
+    is treated as blank, because nobody means that.
+    """
+    if value is None or not value.strip():
+        return None
+    return value
+
+
+def passphrase_problem(passphrase: str) -> str | None:
+    """Why this passphrase cannot be used, in words, or None if it can.
+
+    Returns the sentence rather than a bool so the route can hand it to the
+    template's existing `error` slot — the same shape as the username message
+    the profile page already knows how to show.
+    """
+    if len(passphrase) < MIN_PASSPHRASE:
+        return f"A passphrase needs at least {MIN_PASSPHRASE} characters."
+    if len(passphrase) > MAX_PASSPHRASE:
+        return f"A passphrase can be at most {MAX_PASSPHRASE} characters."
+    return None
+
+
+def hash_passphrase(passphrase: str) -> str:
+    """Salt and hash a passphrase into the one string the column holds.
+
+    The format is `scrypt$n$r$p$salt$key`, all hex, self-describing on
+    purpose: the work factors travel with the hash, so raising them later
+    does not strand every profile saved before the change. The salt is fresh
+    per call from `secrets.token_bytes`, so two people who choose the same
+    passphrase do not share a hash — verified in the tests.
+    """
+    salt = secrets.token_bytes(SALT_BYTES)
+    key = hashlib.scrypt(
+        passphrase.encode("utf-8"),
+        salt=salt,
+        n=SCRYPT_N,
+        r=SCRYPT_R,
+        p=SCRYPT_P,
+        dklen=KEY_BYTES,
+    )
+    return f"scrypt${SCRYPT_N}${SCRYPT_R}${SCRYPT_P}${salt.hex()}${key.hex()}"
+
+
+def verify_passphrase(stored: str | None, passphrase: str | None) -> bool:
+    """Whether `passphrase` is the one behind `stored`.
+
+    Compared with `hmac.compare_digest` rather than `==` so the check takes
+    the same time whichever byte differs first. Anything unreadable in the
+    column — a truncated row, a hash from a scheme this build does not know —
+    verifies against nothing rather than raising: a corrupt hash must fail
+    closed, and the tests hold that.
+    """
+    if not stored or passphrase is None:
+        return False
+    try:
+        scheme, n, r, p, salt_hex, key_hex = stored.split("$")
+        if scheme != "scrypt":
+            return False
+        expected = bytes.fromhex(key_hex)
+        candidate = hashlib.scrypt(
+            passphrase.encode("utf-8"),
+            salt=bytes.fromhex(salt_hex),
+            n=int(n),
+            r=int(r),
+            p=int(p),
+            dklen=len(expected),
+        )
+    except (ValueError, TypeError):
+        return False
+    return hmac.compare_digest(candidate, expected)
+
+
+def set_passphrase(conn: sqlite3.Connection, username: str, passphrase: str | None) -> None:
+    """Set, change, or (with None) remove the passphrase on a profile.
+
+    Only the hash is ever written; the passphrase itself is not stored, not
+    logged, and not put on the Profile that reaches a template.
+    """
+    conn.execute(
+        "UPDATE profiles SET passphrase_hash = ? WHERE username = ?",
+        (hash_passphrase(passphrase) if passphrase is not None else None, username),
+    )
+    conn.commit()
+
+
+def has_passphrase(conn: sqlite3.Connection, username: str) -> bool:
+    """Whether that profile is protected. False for a name nobody has taken."""
+    row = conn.execute(
+        "SELECT passphrase_hash FROM profiles WHERE username = ?", (username,)
+    ).fetchone()
+    return bool(row and row["passphrase_hash"])
+
+
+def passphrase_opens(
+    conn: sqlite3.Connection, username: str, passphrase: str | None
+) -> bool:
+    """Whether this passphrase may open that profile.
+
+    True for a profile that has no hash, whatever was typed — that is the
+    compatibility promise this whole feature rests on, and it is checked here
+    rather than in the route so no caller can forget it. True as well for a
+    username nobody has taken, because typing a new name is still how a
+    profile gets created.
+
+    A wrong passphrase therefore only ever fails for a profile that set one,
+    which does tell an outsider that the name exists and is protected. That is
+    the accepted cost of a form that has to say something useful when the
+    passphrase is wrong.
+    """
+    row = conn.execute(
+        "SELECT passphrase_hash FROM profiles WHERE username = ?", (username,)
+    ).fetchone()
+    if row is None or not row["passphrase_hash"]:
+        return True
+    return verify_passphrase(row["passphrase_hash"], passphrase)
 
 
 def set_scores(

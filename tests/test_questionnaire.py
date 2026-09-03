@@ -129,3 +129,38 @@ def test_an_older_profile_database_gains_the_new_columns(tmp_path):
         assert profile.race is None  # new column exists and is empty
         profiles.set_details(conn, "legacy", **FILLED)
         assert profiles.get(conn, "legacy").home_state == "NY"
+
+
+def test_an_older_profile_database_gains_the_passphrase_column(tmp_path):
+    """The passphrase arrived the same way the questionnaire columns did.
+
+    A database written before it existed has no `passphrase_hash` at all, so
+    `connect` has to add it — and the row it adds it to must keep opening
+    without a passphrase, because that is what every profile made before this
+    change looks like. Setting one afterwards is the path the seeded demo
+    profile takes.
+    """
+    import sqlite3
+
+    path = tmp_path / "old.db"
+    old = sqlite3.connect(path)
+    old.executescript(profiles.SCHEMA)  # the schema before any ALTER TABLE
+    old.execute(
+        "INSERT INTO profiles (username, created_at) VALUES (?, ?)",
+        ("legacy", "2026-09-01T00:00:00Z"),
+    )
+    old.commit()
+    columns = {row[1] for row in old.execute("PRAGMA table_info(profiles)")}
+    old.close()
+    assert "passphrase_hash" not in columns, "otherwise this test proves nothing"
+
+    with profiles.connect(path) as conn:
+        migrated = {row["name"] for row in conn.execute("PRAGMA table_info(profiles)")}
+        assert "passphrase_hash" in migrated
+
+        assert profiles.has_passphrase(conn, "legacy") is False
+        assert profiles.passphrase_opens(conn, "legacy", None) is True
+
+        profiles.set_passphrase(conn, "legacy", "a passphrase set later")
+        assert profiles.passphrase_opens(conn, "legacy", None) is False
+        assert profiles.passphrase_opens(conn, "legacy", "a passphrase set later") is True
