@@ -76,8 +76,10 @@ STAGE_LEADS = {
     "choosing": "financial_aid",
 }
 
-# No password, so no signing library — the cookie is just the username, and
-# that tradeoff was made deliberately (see app/profiles.py).
+# The cookie is still just the username, unsigned. A profile may now carry an
+# optional passphrase, which decides who is allowed to be handed this cookie
+# (see app/profiles.py); signing the cookie itself is a separate change and
+# has not been made.
 PROFILE_COOKIE = "profile"
 PROFILE_COOKIE_MAX_AGE = 180 * 24 * 60 * 60
 
@@ -375,6 +377,7 @@ def profile_page(request: Request):
                 "shortlist": shortlist,
                 "all_schools": all_schools(conn),
                 "max_shortlist": profiles.MAX_SHORTLIST,
+                "min_passphrase": profiles.MIN_PASSPHRASE,
                 "error": error,
                 "races": profiles.RACES,
                 "genders": profiles.GENDERS,
@@ -386,7 +389,16 @@ def profile_page(request: Request):
 
 
 @app.post("/profile")
-def start_profile(username: Annotated[str, Form()]):
+def start_profile(
+    username: Annotated[str, Form()],
+    passphrase: Annotated[str | None, Form()] = None,
+):
+    """Sign in, or start a profile by naming one that does not exist yet.
+
+    The passphrase field is only consulted for a profile that set one:
+    everything saved before passphrases existed opens on the username alone,
+    exactly as it did.
+    """
     clean = profiles.clean_username(username)
     if not clean:
         return RedirectResponse(
@@ -395,6 +407,13 @@ def start_profile(username: Annotated[str, Form()]):
         )
 
     with profiles.connect() as pconn:
+        # Checked before the row is touched, so a failed attempt leaves no
+        # trace on the profile it was aimed at.
+        if not profiles.passphrase_opens(pconn, clean, profiles.clean_passphrase(passphrase)):
+            return RedirectResponse(
+                "/profile?error=That passphrase does not match this profile.",
+                status_code=303,
+            )
         profiles.get_or_create(pconn, clean)
 
     response = RedirectResponse("/profile", status_code=303)
@@ -434,6 +453,7 @@ def new_profile_form(request: Request):
                 "states": profiles.STATES,
                 "stages": profiles.STAGES,
                 "bands": areas.financial_aid.BANDS,
+                "min_passphrase": profiles.MIN_PASSPHRASE,
                 "error": request.query_params.get("error"),
             },
         )
@@ -451,6 +471,7 @@ def create_profile(
     race: Annotated[str | None, Form()] = None,
     gender: Annotated[str | None, Form()] = None,
     stage: Annotated[str | None, Form()] = None,
+    passphrase: Annotated[str | None, Form()] = None,
     school: Annotated[list[int] | None, Form()] = None,
 ):
     clean = profiles.clean_username(username)
@@ -460,7 +481,21 @@ def create_profile(
             status_code=303,
         )
 
+    secret = profiles.clean_passphrase(passphrase)
+    problem = profiles.passphrase_problem(secret) if secret else None
+    if problem:
+        return RedirectResponse(f"/profile/new?error={problem}", status_code=303)
+
     with profiles.connect() as pconn:
+        # Signing up under a name that is already protected must not be a way
+        # around its passphrase: without this, anyone could retake a profile
+        # they cannot open by filling this form in with the same username.
+        if profiles.has_passphrase(pconn, clean):
+            return RedirectResponse(
+                "/profile?error=That username is taken and has a passphrase. "
+                "Sign in with it below.",
+                status_code=303,
+            )
         profiles.get_or_create(pconn, clean)
         profiles.set_scores(
             pconn,
@@ -479,6 +514,8 @@ def create_profile(
             gender=profiles.clean_choice(gender, profiles.GENDERS),
             stage=profiles.clean_choice(stage, profiles.STAGES),
         )
+        if secret:
+            profiles.set_passphrase(pconn, clean, secret)
         for unitid in (school or [])[: profiles.MAX_SHORTLIST]:
             profiles.add_school(pconn, clean, unitid)
 
@@ -491,6 +528,37 @@ def create_profile(
         samesite="lax",
     )
     return response
+
+
+@app.post("/profile/passphrase")
+def update_passphrase(
+    request: Request,
+    passphrase: Annotated[str | None, Form()] = None,
+):
+    """Add or change the passphrase on the profile this browser is signed in to.
+
+    The cookie is the only authority asked for, and it is the same one that
+    opened the profile: a protected profile cannot be opened without its
+    passphrase, so whoever holds this cookie either gave it or the profile had
+    none to give. That is what lets a profile made before this existed — the
+    seeded demo one included — be protected without being recreated.
+    """
+    username = _current_username(request)
+    if not username:
+        return RedirectResponse("/profile", status_code=303)
+
+    secret = profiles.clean_passphrase(passphrase)
+    if secret is None:
+        return RedirectResponse(
+            "/profile?error=Type a passphrase to set one.", status_code=303
+        )
+    problem = profiles.passphrase_problem(secret)
+    if problem:
+        return RedirectResponse(f"/profile?error={problem}", status_code=303)
+
+    with profiles.connect() as pconn:
+        profiles.set_passphrase(pconn, username, secret)
+    return RedirectResponse("/profile", status_code=303)
 
 
 @app.post("/profile/details")

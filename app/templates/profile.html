@@ -14,7 +14,8 @@
     <h1>Start a profile</h1>
     <p class="lede">
       Save your scores, income bracket, and a shortlist of schools so you
-      don't have to re-enter them next time. No password — just a name.
+      don't have to re-enter them next time. A passphrase is optional, and it
+      is what stops anyone who knows the username from opening the profile.
     </p>
 
     {% if error %}<p class="hint warn">{{ error }}</p>{% endif %}
@@ -24,11 +25,42 @@
       <input class="field" id="username" name="username" type="text"
              placeholder="e.g. jenny" autocomplete="off" required
              pattern="[a-zA-Z0-9_-]{3,20}" title="3-20 letters, numbers, - or _">
+      <label for="passphrase" class="panel-title" style="margin-top: 1rem;">
+        Passphrase <span class="opt">only if this profile has one</span>
+      </label>
+      <input class="field" id="passphrase" name="passphrase" type="password"
+             autocomplete="current-password">
       <button type="submit" style="margin-top: 1rem;">Start</button>
     </form>
   {% else %}
     <h1>Signed in as {{ profile.username }}</h1>
     <p class="lede">Your scores and shortlist, saved to this browser.</p>
+
+    <section class="panel" style="margin-bottom: 1.5rem;">
+      <h2 class="panel-title">Passphrase</h2>
+      <p class="panel-hint">
+        {% if profile.has_passphrase %}
+          This profile asks for its passphrase before it opens. Typing a new one replaces it.
+        {% else %}
+          This profile has no passphrase, so anyone who knows the username can open it and
+          read what is saved here &mdash; including your income band, your answers about
+          yourself, and any offers you have entered. Setting one is optional.
+        {% endif %}
+      </p>
+      {% if error %}<p class="hint warn">{{ error }}</p>{% endif %}
+      <form action="/profile/passphrase" method="post" class="field-row">
+        <label><span class="label-text">
+            {{ "New passphrase" if profile.has_passphrase else "Passphrase" }}
+            <span class="opt">at least {{ min_passphrase }} characters</span>
+          </span>
+          <input class="field" type="password" name="passphrase" required
+                 minlength="{{ min_passphrase }}" autocomplete="new-password">
+        </label>
+        <label style="flex: 0 0 auto; justify-content: flex-end;">
+          <button type="submit">{{ "Change" if profile.has_passphrase else "Set" }}</button>
+        </label>
+      </form>
+    </section>
 
     <section class="panel" style="margin-bottom: 1.5rem;">
       <h2 class="panel-title">Scores &amp; income</h2>

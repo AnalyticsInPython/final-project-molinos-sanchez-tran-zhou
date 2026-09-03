@@ -43,9 +43,9 @@
 
     <section class="panel">
       <h2 class="panel-title">Who you are</h2>
-      <p class="panel-hint">A username is all we ask for. There is no password &mdash; anyone who
-        knows your username can open this profile, so keep it to things you would not mind a
-        classmate seeing.</p>
+      <p class="panel-hint">A username is all we ask for. A passphrase is optional, and it is
+        what stops anyone who knows your username from opening this profile and reading what
+        you save here.</p>
       <div class="field-row">
         <label><span class="label-text">Username</span>
           <input class="field" type="text" name="username" required
@@ -53,6 +53,11 @@
         </label>
         <label><span class="label-text">Name <span class="opt">optional</span></span>
           <input class="field" type="text" name="display_name" placeholder="What we should call you">
+        </label>
+        <label><span class="label-text">Passphrase <span class="opt">optional</span></span>
+          <input class="field" type="password" name="passphrase" autocomplete="new-password"
+                 minlength="{{ min_passphrase }}"
+                 placeholder="At least {{ min_passphrase }} characters">
         </label>
       </div>
     </section>
