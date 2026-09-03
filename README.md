@@ -28,7 +28,14 @@ uv sync
 
 ```sh
 uv run python scripts/import_ipeds.py
+uv run python scripts/import_eada.py
 ```
+
+The second script adds athletics, which comes from a **different federal survey**: EADA,
+the Equity in Athletics Disclosure Act collection. IPEDS has no athletics participation or
+spending at all, only membership flags. Run it after the IPEDS ingest — that one drops and
+recreates `ingest_runs`, so running it afterwards erases EADA's year metadata (the app
+falls back to the table's own years, so it degrades rather than breaks).
 
 Pulls fourteen IPEDS endpoints from the Urban Institute Education Data Explorer into
 `data/likeforlike.db` (~35 MB, about a minute, no API key). The database is gitignored —
@@ -47,6 +54,7 @@ runs to 2024 and does not warn.
 scripts/schools.py        the 25-school working sample
 scripts/import_ipeds.py   API -> SQLite, one table per endpoint, no cleaning
 data/likeforlike.db       generated
+scripts/import_eada.py    EADA athletics -> SQLite, one bulk file per survey year
 app/areas/                one module per comparison area
 app/notices.py            what to tell the reader the figures do not cover
 ```

@@ -137,6 +137,16 @@ def chart(
         if below["label_y"] - above["label_y"] < LABEL_GAP:
             below["label_y"] = round(above["label_y"] + LABEL_GAP, 1)
 
+    # Pushing apart can walk the last label off the bottom of the plot and into
+    # the year labels — it happens whenever several series share a value, as
+    # they do when every Ivy reports $0 of athletic aid. Slide the whole group
+    # back up by the overflow so the spacing is kept and nothing escapes.
+    floor = top + plot_h
+    overflow = series[-1]["label_y"] - floor
+    if overflow > 0:
+        for item in series:
+            item["label_y"] = round(item["label_y"] - overflow, 1)
+
     # Label every year when there is room, otherwise every other one, always
     # keeping the last so the reader can see where the window closes.
     step = 1 if len(years) <= 6 else 2

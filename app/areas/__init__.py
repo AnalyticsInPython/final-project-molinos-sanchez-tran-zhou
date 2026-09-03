@@ -12,6 +12,7 @@ An area module is expected to define:
     TITLE     str   heading shown on the page
     QUESTION  str   the question this area answers, in a family's words
     SUBJECT   str   the data in the reader's words ("net price"), for notices
+    SOURCE    str   optional: the survey behind it, default "IPEDS"
     ICON      str   inner markup for a 24x24 <svg>, stroked not filled
     TABLE     str   ingest table the year label is read from
     TEMPLATE  str   path under app/templates/
@@ -42,11 +43,12 @@ circulations differently enough that putting the columns side by side invites
 a comparison the data does not support.
 """
 
-from app.areas import financial_aid, selectiveness
+from app.areas import athletics, financial_aid, selectiveness
 
 ALL = [
     financial_aid,
     selectiveness,
+    athletics,
     # Claim one and add it here:
     # student_charges,
     # retention,

@@ -23,8 +23,8 @@
       <div class="area-head">
         <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">{{ section.area.ICON | safe }}</svg>
         <h2>{{ section.area.TITLE }}</h2>
-        {% if section.mode == "trend" %}<span class="year">IPEDS {{ years[0] }}&ndash;{{ years[-1] }}</span>
-        {% elif section.year %}<span class="year">IPEDS {{ section.year }}</span>{% endif %}
+        {% if section.mode == "trend" %}<span class="year">{{ section.area.SOURCE | default("IPEDS", true) }} {{ years[0] }}&ndash;{{ years[-1] }}</span>
+        {% elif section.year %}<span class="year">{{ section.area.SOURCE | default("IPEDS", true) }} {{ section.year }}</span>{% endif %}
       </div>
       <p class="question">{{ section.area.QUESTION }}</p>
       {% if section.notices %}

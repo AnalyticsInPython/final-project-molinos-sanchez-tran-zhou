@@ -133,3 +133,17 @@ def test_areas_expose_a_trend_over_the_shared_window(conn):
 def test_the_trend_covers_every_ingested_year(conn):
     years = years_available(conn, selectiveness.TABLE)
     assert len(years) >= 10
+
+
+def test_labels_never_escape_the_plot():
+    """Several series on the same value push each other off the bottom.
+
+    Real case: every Ivy reports $0 of athletic aid, so their labels stack at
+    the axis and the last one lands among the year ticks.
+    """
+    flat = {(uid, y): 0 for uid in (1, 2) for y in YEARS}
+    spec = chart([A, B], YEARS, flat, fmt=money)
+    floor = spec["plot_bottom"]
+    assert all(s["label_y"] <= floor for s in spec["series"])
+    positions = sorted(s["label_y"] for s in spec["series"])
+    assert positions[1] - positions[0] >= 12

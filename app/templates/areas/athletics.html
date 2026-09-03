@@ -1,0 +1,99 @@
+{# Athlete share (the finding), then the money behind it. #}
+
+{% if context.share_chart %}
+  {% set c = context.share_chart %}
+  <div class="figure">
+    <h3>Share of the student body playing a varsity sport</h3>
+    <p class="sub">
+      Each athlete counted once, however many teams they are on. This is the number that
+      separates these schools most: a campus where one student in four is on a roster is a
+      different place from one where it is one in fifty.
+    </p>
+    <svg viewBox="0 0 {{ c.width }} {{ c.height }}" role="img"
+         aria-label="Share of undergraduates who play a varsity sport, by school">
+      {% for bar in c.bars %}
+        <text x="{{ c.label_x }}" y="{{ bar.text_y }}" text-anchor="end"
+              font-size="12" fill="#17211d">{{ bar.name }}</text>
+        <rect x="{{ c.plot_x }}" y="{{ bar.y }}" width="{{ bar.width }}" height="14"
+              rx="2" fill="{{ bar.color }}"></rect>
+        <text x="{{ bar.label_x }}" y="{{ bar.text_y }}" font-size="11"
+              fill="#4f5a54">{{ bar.value }}</text>
+      {% endfor %}
+    </svg>
+  </div>
+{% endif %}
+
+{% if context.aid_chart %}
+  {% set c = context.aid_chart %}
+  <div class="figure">
+    <h3>Athletic aid per athlete</h3>
+    <p class="sub">
+      Total athletically related student aid divided by the athletes on the rosters.
+      <strong>Zero is a real answer</strong> &mdash; Division III schools and the Ivy League
+      award no athletic scholarships at all, so a bar at zero means the money here is
+      need-based or nothing.
+    </p>
+    <svg viewBox="0 0 {{ c.width }} {{ c.height }}" role="img"
+         aria-label="Athletically related student aid per athlete, by school">
+      {% for bar in c.bars %}
+        <text x="{{ c.label_x }}" y="{{ bar.text_y }}" text-anchor="end"
+              font-size="12" fill="#17211d">{{ bar.name }}</text>
+        <rect x="{{ c.plot_x }}" y="{{ bar.y }}" width="{{ bar.width }}" height="14"
+              rx="2" fill="{{ bar.color }}"></rect>
+        <text x="{{ bar.label_x }}" y="{{ bar.text_y }}" font-size="11"
+              fill="#4f5a54">{{ bar.value }}</text>
+      {% endfor %}
+    </svg>
+  </div>
+{% endif %}
+
+<div class="scroll">
+  <table>
+    <thead>
+      <tr>
+        <th>School</th>
+        <th class="metric-head">Athletes</th>
+        <th>Undergraduates</th>
+        <th>Men</th>
+        <th>Women</th>
+        <th>Aid per athlete</th>
+        <th>Division</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in context.rows %}
+        <tr>
+          <td>
+            <span class="chip" style="background: {{ row.school.color }}"></span>
+            {{ row.school.name }}
+          </td>
+          <td class="metric">
+            {% if row.share is none %}<span class="missing" title="Not reported">&mdash;</span>
+            {% else %}{{ row.share | percent }}{% endif %}
+          </td>
+          <td>{{ row.enrolled | number }}</td>
+          <td>{{ row.men | number }}</td>
+          <td>{{ row.women | number }}</td>
+          <td>
+            {% if row.per_athlete is none %}<span class="missing" title="Not reported">&mdash;</span>
+            {% else %}{{ row.per_athlete | money }}{% endif %}
+          </td>
+          <td style="text-align: left; white-space: normal;">
+            {{ row.division or "&mdash;" | safe }}
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<p class="note">
+  From <strong>EADA</strong>, the Equity in Athletics Disclosure Act collection &mdash; a
+  different federal survey from the IPEDS data behind the other areas. IPEDS records only
+  whether a school belongs to the NCAA, not who plays or what it costs. Athletes are counted
+  once each, so someone running cross country and track is one person here. Undergraduate
+  enrolment is EADA's own count, used so the share is internally consistent rather than
+  mixing two surveys. Revenues and expenses are omitted deliberately: every institution
+  reports them as equal, because institutional support is booked as revenue, so the survey
+  cannot show whether a programme runs at a loss.
+</p>

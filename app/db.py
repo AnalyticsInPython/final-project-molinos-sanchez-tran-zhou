@@ -28,6 +28,27 @@ def connect(path: Path = DB_PATH) -> sqlite3.Connection:
     return conn
 
 
+def _own_years(conn: sqlite3.Connection, table: str) -> list[int]:
+    """Years the table itself holds, for a source outside the IPEDS ingest.
+
+    `scripts/import_ipeds.py` drops and recreates `ingest_runs`, which erases
+    the rows `scripts/import_eada.py` wrote. Rather than make the athletics
+    area disappear whenever someone rebuilds in the wrong order, fall back to
+    asking the table. The cost is that `series_ends` cannot be answered this
+    way — an absent row is not evidence a survey stopped — so it stays False.
+
+    The table name is checked against `sqlite_master` before it reaches the
+    query, because it cannot be passed as a parameter.
+    """
+    known = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?", (table,)
+    ).fetchone()
+    if not known:
+        return []
+    rows = conn.execute(f'SELECT DISTINCT year FROM "{table}" ORDER BY year').fetchall()
+    return [row["year"] for row in rows if row["year"] is not None]
+
+
 def latest_year(conn: sqlite3.Connection, table: str) -> int | None:
     """The newest year this table actually holds data for.
 
@@ -39,7 +60,10 @@ def latest_year(conn: sqlite3.Connection, table: str) -> int | None:
         "SELECT MAX(year) AS year FROM ingest_runs WHERE table_name = ? AND rows > 0",
         (table,),
     ).fetchone()
-    return row["year"] if row else None
+    if row and row["year"] is not None:
+        return row["year"]
+    years = _own_years(conn, table)
+    return years[-1] if years else None
 
 
 def years_available(conn: sqlite3.Connection, table: str) -> list[int]:
@@ -48,7 +72,7 @@ def years_available(conn: sqlite3.Connection, table: str) -> list[int]:
         "SELECT year FROM ingest_runs WHERE table_name = ? AND rows > 0 ORDER BY year",
         (table,),
     ).fetchall()
-    return [row["year"] for row in rows]
+    return [row["year"] for row in rows] or _own_years(conn, table)
 
 
 def series_ends(conn: sqlite3.Connection, table: str) -> bool:
