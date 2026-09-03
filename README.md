@@ -12,9 +12,13 @@ family's income, and whether it does better than the schools it resembles.
 
 ## Status
 
-Two areas built — **student financial aid** and **selectiveness** — over a FastAPI app with a
-searchable school picker. The ingest pulls a range of years per endpoint, and each area shows
-the newest year it actually has, which is not the same year for every area.
+Four areas wired in — **student financial aid**, **selectiveness**, **enrollment**
+(race/ethnicity, gender, international share), and **institution characteristics** (locator
+map, founding year and motto from Wikidata) — over a FastAPI app with a searchable school
+picker. A fifth, **after graduation** (post-grad earnings and debt via College Scorecard), is
+built and tested but deliberately not wired in — see `app/areas/__init__.py` for why. The
+ingest pulls a range of years per endpoint, and each area shows the newest year it actually
+has, which is not the same year for every area.
 
 ## Setup
 
@@ -31,24 +35,38 @@ uv run python scripts/import_ipeds.py
 uv run python scripts/import_eada.py
 ```
 
-The second script adds athletics, which comes from a **different federal survey**: EADA,
-the Equity in Athletics Disclosure Act collection. IPEDS has no athletics participation or
-spending at all, only membership flags. Run it after the IPEDS ingest — that one drops and
-recreates `ingest_runs`, so running it afterwards erases EADA's year metadata (the app
-falls back to the table's own years, so it degrades rather than breaks).
+The first script pulls fourteen IPEDS endpoints from the Urban Institute Education Data
+Explorer, plus two non-IPEDS tables — post-graduation earnings and debt from the College
+Scorecard API, and founding year and motto from Wikidata — into `data/likeforlike.db`.
 
-Pulls fourteen IPEDS endpoints from the Urban Institute Education Data Explorer into
-`data/likeforlike.db` (~35 MB, about a minute, no API key). The database is gitignored —
-it is rebuilt from this script, never committed.
+The second adds athletics from a **third** source: EADA, the Equity in Athletics
+Disclosure Act collection. IPEDS has no athletics participation or spending at all, only
+membership flags. Run it after the IPEDS ingest — that one drops and recreates
+`ingest_runs`, so running it afterwards erases EADA's year metadata (the app falls back to
+the table's own years, so it degrades rather than breaks).
 
-**Each endpoint gets a range of years, not one anchor year.** Comparison areas pull ten
+The database is gitignored — it is rebuilt from these scripts, never committed.
+
+**Each IPEDS endpoint gets a range of years, not one anchor year.** Comparison areas pull ten
 years (2015–2024) so a trend can be drawn; reference tables pull four. Every endpoint-year
 asked for is recorded in `ingest_runs`, *including the ones that came back empty* — that is
 how the app tells "IPEDS publishes nothing newer" apart from "we have not loaded it yet",
 without anyone maintaining a flag by hand. Net price stops at 2021 and says so; admissions
 runs to 2024 and does not warn.
 
-`--years N` trims every range to its N most recent years for a faster rebuild.
+`--years N` trims every IPEDS range to its N most recent years for a faster rebuild.
+
+**College Scorecard and Wikidata are the odd ones out: a snapshot, not a range.** Scorecard's
+three fields are three different entry/completion cohorts rather than one collection year —
+see `outcomes.py`'s docstring for exactly which. Wikidata has no year at all, just whatever is
+on the page now, joined on `wdt:P1771` — Wikidata's own IPEDS-UNITID property — rather than by
+name, so a school like Hunter College can't get matched into a query meant for Caltech. No API
+key is required to build the database: Scorecard falls back to the public `DEMO_KEY`, which is
+rate-limited but enough for this 25-school sample, and Wikidata's query service needs none at
+all. Copy `.env.example` to `.env` if you want a `COLLEGE_SCORECARD_API_KEY` of your own (free:
+<https://api.data.gov/signup/>), or a `MAPTILER_API_KEY` for the locator map on institution
+characteristics (free: <https://cloud.maptiler.com/account/keys/>) — the map is the one
+feature that doesn't degrade gracefully without a key.
 
 ```
 scripts/schools.py        the 25-school working sample
@@ -111,6 +129,9 @@ up in [PROPOSAL.md](PROPOSAL.md#known-limitations):
   than whatever the first row carried. The `sex` dimension goes `[1, 2, 99]` through 2021,
   gains `9` in 2022 and `3` in 2023 — pin the total (`99`) and never sum the parts, or the
   meaning of a series changes halfway along it.
+- **A null Scorecard debt figure means too few borrowers to report, not zero.** NSLDS
+  suppresses `median_debt.completers.overall` below a minimum cohort size (Caltech, in this
+  sample) — a different missingness rule from IPEDS's -1/-2/-3 sentinels above.
 
 ## Team
 

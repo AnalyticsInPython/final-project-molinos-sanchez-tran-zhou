@@ -1,0 +1,93 @@
+{# One figure — 6-year earnings to 10-year earnings, same range-plot shape as
+   financial aid's primary chart — then the full numbers in a table. #}
+
+{% if context.chart %}
+  {% set c = context.chart %}
+  <div class="figure">
+    <h3>How much earnings climb between year 6 and year 10</h3>
+    <p class="sub">Each bar runs from median earnings 6 years after entry to 10 years after. Sorted widest first.</p>
+    <svg viewBox="0 0 {{ c.width }} {{ c.height }}" role="img"
+         aria-label="Median earnings at 6 years and at 10 years after entry, one bar per school">
+      {% for tick in c.ticks %}
+        <line x1="{{ tick.x }}" y1="{{ c.top }}" x2="{{ tick.x }}" y2="{{ tick.y_end }}"
+              stroke="#dce1d9" stroke-width="1"></line>
+        <text x="{{ tick.x }}" y="{{ c.axis_y }}" text-anchor="middle"
+              font-size="11" fill="#7b857e">{{ tick.label }}</text>
+      {% endfor %}
+      {% for bar in c.bars %}
+        <text x="122" y="{{ bar.label_y }}" text-anchor="end" font-size="12" fill="#17211d">{{ bar.name }}</text>
+        <line x1="{{ bar.x_low }}" y1="{{ bar.y }}" x2="{{ bar.x_high }}" y2="{{ bar.y }}"
+              stroke="#9ec5f4" stroke-width="6" stroke-linecap="round"></line>
+        <circle cx="{{ bar.x_high }}" cy="{{ bar.y }}" r="5.5" fill="#184f95" stroke="#fff" stroke-width="2">
+          <title>{{ bar.name }} — 10 years after entry: {{ bar.high | money }}</title>
+        </circle>
+        <circle cx="{{ bar.x_low }}" cy="{{ bar.y }}" r="5.5" fill="#6da7ec" stroke="#fff" stroke-width="2">
+          <title>{{ bar.name }} — 6 years after entry: {{ bar.low | money }}</title>
+        </circle>
+        <text x="{{ bar.growth_x }}" y="{{ bar.label_y }}" font-size="11" fill="#7b857e">{% if bar.growth >= 0 %}+{% endif %}{{ bar.growth | money }}</text>
+      {% endfor %}
+    </svg>
+    <p class="keys">
+      <span><span class="dot" style="background: #6da7ec"></span> 6 years after entry</span>
+      <span><span class="dot" style="background: #184f95"></span> 10 years after entry</span>
+      <span>Figure at right is the growth.</span>
+    </p>
+  </div>
+{% endif %}
+
+<div class="scroll">
+  <table>
+    <thead>
+      <tr>
+        <th>School</th>
+        <th>Earnings, 6 yrs</th>
+        <th>Earnings, 10 yrs</th>
+        <th class="metric-head">Growth</th>
+        <th>Median debt</th>
+        <th class="metric-head">Debt : earnings</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in context.rows %}
+        <tr>
+          <td>
+            <span class="chip" style="background: {{ row.school.color }}"></span>
+            {{ row.school.name }}
+          </td>
+          <td>
+            {% if row.earnings_6yr is none %}<span class="missing">&mdash;</span>
+            {% else %}{{ row.earnings_6yr | money }}{% endif %}
+          </td>
+          <td>
+            {% if row.earnings_10yr is none %}<span class="missing">&mdash;</span>
+            {% else %}{{ row.earnings_10yr | money }}{% endif %}
+          </td>
+          <td class="metric">
+            {% if row.growth is none %}<span class="missing">&mdash;</span>
+            {% else %}{% if row.growth >= 0 %}+{% endif %}{{ row.growth | money }}{% endif %}
+          </td>
+          <td>
+            {% if row.median_debt is none %}<span class="missing" title="Too few borrowers to report">&mdash;</span>
+            {% else %}{{ row.median_debt | money }}{% endif %}
+          </td>
+          <td class="metric">
+            {% if row.debt_to_earnings is none %}<span class="missing">&mdash;</span>
+            {% else %}{{ row.debt_to_earnings }} yrs{% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<p class="note">
+  Source: the College Scorecard API, not IPEDS. <strong>The three figures are three
+  different cohorts</strong>, not one graduating class: 10-year earnings track students
+  who entered college in 2009&ndash;11, 6-year earnings track the 2013&ndash;15 entering
+  class, and debt tracks whoever completed a degree in FY2020&ndash;21 &mdash; all measured
+  or reported in the government's most recent 2020&ndash;21 release.
+  A missing <strong>median debt</strong> means too few borrowers to report a number, not
+  that nobody borrowed. <strong>Debt : earnings</strong> is median debt divided by 6-year
+  median earnings, in years &mdash; how much of one early-career year's salary would
+  clearing the debt take. We compute it; neither source publishes it.
+</p>

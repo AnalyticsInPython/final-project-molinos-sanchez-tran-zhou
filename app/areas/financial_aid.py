@@ -34,6 +34,7 @@ QUESTION = "What will I actually pay, at my income?"
 # price data at all" rather than being used as a heading.
 SUBJECT = "net price"
 TABLE = "sfa_grants_and_net_price"
+SOURCE = "IPEDS"
 TEMPLATE = "areas/financial_aid.html"
 
 # Drawn on a 24x24 grid, stroked in the caller's colour rather than filled, so
@@ -379,3 +380,21 @@ COVERAGE_QUERY = """
 def coverage(conn: sqlite3.Connection) -> set[tuple[int, int]]:
     """Every (unitid, year) this area can render, for the year picker."""
     return {(row[0], row[1]) for row in conn.execute(COVERAGE_QUERY)}
+
+
+def highlights(context: dict) -> list[str]:
+    """One line naming the school whose price depends most on income here.
+
+    Optional, like `trend` and `coverage` — the route collects these into a
+    page-top strip when there is more than one school to contrast. Computed
+    from `spread`, already the module's own finding, not a new metric picked
+    to sound interesting.
+    """
+    rows = [row for row in context.get("rows", []) if row.get("spread") is not None]
+    if len(rows) < 2:
+        return []
+    widest = max(rows, key=lambda row: row["spread"])
+    return [
+        f"{widest['school'].short} has the widest price swing by income here — "
+        f"{money(widest['spread'])} between the lowest and highest income bands."
+    ]

@@ -85,3 +85,18 @@ def test_the_query_is_filtered_to_one_year(conn):
     a = financial_aid.load(conn, schools, 2020)["rows"]
     b = financial_aid.load(conn, schools, 2021)["rows"]
     assert [r["spread"] for r in a] != [r["spread"] for r in b]
+
+
+def test_highlights_names_the_widest_spread(conn, year):
+    """Dartmouth's spread ($53,332) is the widest in the 25-school sample."""
+    context = financial_aid.load(conn, all_schools(conn), year)
+    lines = financial_aid.highlights(context)
+    assert lines
+    assert "Dartmouth" in lines[0]
+
+
+def test_highlights_is_empty_for_a_single_school(conn, year):
+    """A "widest spread" claim needs something to be wider than."""
+    schools = [s for s in all_schools(conn) if s.unitid == CALTECH]
+    context = financial_aid.load(conn, schools, year)
+    assert financial_aid.highlights(context) == []

@@ -354,3 +354,23 @@ COVERAGE_QUERY = """
 def coverage(conn: sqlite3.Connection) -> set[tuple[int, int]]:
     """Every (unitid, year) this area can render, for the year picker."""
     return {(row[0], row[1]) for row in conn.execute(COVERAGE_QUERY)}
+
+
+def highlights(context: dict) -> list[str]:
+    """One line naming the hardest school to get into here.
+
+    Optional, like `trend` and `coverage` — see financial_aid.highlights for
+    the shared convention.
+    """
+    rows = [
+        row
+        for row in context.get("rows", [])
+        if row.get("admit_rate") is not None and row.get("yield_rate") is not None
+    ]
+    if len(rows) < 2:
+        return []
+    hardest = min(rows, key=lambda row: row["admit_rate"])
+    return [
+        f"{hardest['school'].short} is the hardest to get into here — "
+        f"{percent(hardest['admit_rate'])} of applicants admitted."
+    ]

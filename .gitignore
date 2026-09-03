@@ -20,6 +20,9 @@ data/cache/
 .vscode/
 .idea/
 
+# Local secrets (see .env.example for what's expected)
+.env
+
 # SQLite (rebuilt by scripts/import_ipeds.py)
 *.db
 *.db-wal

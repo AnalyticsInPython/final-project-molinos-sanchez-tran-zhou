@@ -1,0 +1,78 @@
+{# One figure — a sized, segmented composition bar — then the headline
+   numbers in a table. Race/ethnicity detail lives in the chart's hover
+   titles and the legend, not a nine-column table. #}
+
+{% if context.chart %}
+  {% set c = context.chart %}
+  <div class="figure">
+    <h3>Undergraduate enrollment, by size and composition</h3>
+    <p class="sub">Bar length is total enrollment — schools differ by more than sevenfold. Segments are that school's own race/ethnicity mix.</p>
+    <svg viewBox="0 0 {{ c.width }} {{ c.height }}" role="img"
+         aria-label="Undergraduate enrollment size and race/ethnicity composition, one bar per school">
+      {% for bar in c.bars %}
+        <text x="{{ c.label_x }}" y="{{ bar.text_y }}" text-anchor="end"
+              font-size="12" fill="#17211d">{{ bar.name }}</text>
+        {% for seg in bar.segments %}
+          <rect x="{{ seg.x }}" y="{{ bar.y }}" width="{{ seg.width }}" height="14" fill="{{ seg.color }}">
+            <title>{{ bar.name }} — {{ seg.label }}: {{ seg.pct | percent }}</title>
+          </rect>
+        {% endfor %}
+        <text x="{{ bar.total_x }}" y="{{ bar.text_y }}" font-size="11" fill="#7b857e">{{ bar.total | number }}</text>
+      {% endfor %}
+    </svg>
+    <p class="keys">
+      {% for entry in context.legend %}
+        <span><span class="dot" style="background: {{ entry.color }}"></span> {{ entry.label }}</span>
+      {% endfor %}
+    </p>
+  </div>
+{% endif %}
+
+<div class="scroll">
+  <table>
+    <thead>
+      <tr>
+        <th>School</th>
+        <th class="metric-head">Total enrolled</th>
+        <th>Women</th>
+        <th>Men</th>
+        <th class="metric-head">International</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in context.rows %}
+        <tr>
+          <td>
+            <span class="chip" style="background: {{ row.school.color }}"></span>
+            {{ row.school.name }}
+          </td>
+          <td class="metric">
+            {% if row.total %}{{ row.total | number }}{% else %}<span class="missing">&mdash;</span>{% endif %}
+          </td>
+          <td>
+            {% if row.female_pct is none %}<span class="missing">&mdash;</span>
+            {% else %}{{ row.female_pct | percent }}{% endif %}
+          </td>
+          <td>
+            {% if row.male_pct is none %}<span class="missing">&mdash;</span>
+            {% else %}{{ row.male_pct | percent }}{% endif %}
+          </td>
+          <td class="metric">
+            {% if row.international_pct is none %}<span class="missing">&mdash;</span>
+            {% else %}{{ row.international_pct | percent }}{% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<p class="note">
+  Undergraduate headcount only (IPEDS's <code>level_of_study = 1</code>), so a school's
+  graduate and professional programs are not reflected here. <strong>International</strong>
+  is IPEDS's own &ldquo;Nonresident alien&rdquo; category &mdash; a single bucket with no
+  breakdown by country of origin; that detail lives outside IPEDS entirely. Race/ethnicity
+  percentages are each category's share of the school's own reported total, hover a chart
+  segment for the exact figure. A missing figure means that school did not report this
+  category that year, not zero.
+</p>

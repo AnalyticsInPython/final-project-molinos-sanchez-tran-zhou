@@ -80,6 +80,14 @@
     .nav-actions { display: flex; align-items: center; gap: .9rem; }
     .nav-actions .cta { font-size: .85rem; font-weight: 600; text-decoration: none; padding: .35rem .7rem; border-radius: 4px; background: var(--accent); color: #fff; }
     .nav-actions .cta:hover { filter: brightness(1.08); }
+    /* Highlights: data-derived superlatives across the compared schools, one
+       per area (see e.g. financial_aid.highlights). Deliberately not styled
+       like a `.notice` — those are caveats to read before trusting a number,
+       this is neither a caveat nor a claim beyond what the areas below it
+       already show, so it gets its own upbeat, non-warning treatment. */
+    .highlights { list-style: none; margin: 0 0 1.75rem; padding: 0; display: flex; flex-direction: column; gap: .5rem; }
+    .highlights li { display: flex; gap: .55rem; align-items: baseline; font-size: .9rem; line-height: 1.5; padding: .65rem .85rem; border-radius: 4px; background: #eef7f2; border: 1px solid #cfe6da; color: var(--ink); }
+    .highlight-mark { flex: none; font-size: .95rem; line-height: 1.3; }
     .scroll { overflow-x: auto; }
     table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
     th, td { text-align: right; padding: .5rem .6rem; border-bottom: 1px solid var(--rule); white-space: nowrap; }
@@ -88,6 +96,22 @@
     thead th { font-size: .78rem; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-faint); }
     .metric { font-weight: 700; color: var(--accent); }
     .missing { color: var(--ink-faint); }
+    /* A cell that stacks a primary fact over a lighter secondary one, so
+       related columns (city+setting, control+size) can merge into one
+       without losing either value. */
+    td.stack { white-space: normal; }
+    td.stack .sub { display: block; font-size: .78rem; color: var(--ink-faint); margin-top: .1rem; }
+
+    /* An attribute-rows / school-columns table: for areas that are mostly
+       categorical facts rather than one comparable number, the default
+       school-per-row table forces every fact about a school onto one line —
+       right-aligned prose, mixed row heights. Flipped, each row compares one
+       fact across every school, which is the shape the reading actually is. */
+    table.compare th, table.compare td { text-align: left; white-space: normal; vertical-align: top; }
+    table.compare thead th { text-transform: none; letter-spacing: normal; font-size: .92rem; font-weight: 600; color: var(--ink); padding-bottom: .65rem; }
+    table.compare tbody th { font-weight: 600; font-size: .82rem; color: var(--ink-soft); padding-right: 1.1rem; min-width: 9rem; }
+    table.compare tbody tr:nth-child(odd) { background: var(--ground); }
+    table.compare td.metric { font-weight: 700; color: var(--accent); }
     .note { font-size: .82rem; color: var(--ink-faint); margin: 1rem 0 0; }
     svg { max-width: 100%; height: auto; }
     .figure { margin: 0 0 1.75rem; }
@@ -101,7 +125,7 @@
     .legend .swatch { width: .7rem; height: .7rem; border-radius: 2px; align-self: center; }
     .legend .val { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--accent); }
     .legend .cap { font-weight: 600; color: var(--ink-faint); text-transform: uppercase; letter-spacing: .06em; font-size: .7rem; padding-bottom: .3rem; }
-    .keys { display: flex; gap: 1.25rem; font-size: .82rem; color: var(--ink-soft); margin: .4rem 0 0; }
+    .keys { display: flex; flex-wrap: wrap; gap: .5rem 1.25rem; font-size: .82rem; color: var(--ink-soft); margin: .4rem 0 0; }
     .keys span { display: flex; align-items: center; gap: .4rem; }
     .keys .dot { width: .65rem; height: .65rem; border-radius: 50%; }
 

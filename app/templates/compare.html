@@ -30,10 +30,21 @@
       <div class="area-head">
         <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">{{ section.area.ICON | safe }}</svg>
         <h2>{{ section.area.TITLE }}</h2>
-        {% if section.mode == "trend" %}<span class="year">{{ section.area.SOURCE | default("IPEDS", true) }} {{ years[0] }}&ndash;{{ years[-1] }}</span>
-        {% elif section.year %}<span class="year">{{ section.area.SOURCE | default("IPEDS", true) }} {{ section.year }}</span>{% endif %}
+        {% if section.mode == "trend" %}<span class="year">{{ section.source }} {{ years[0] }}&ndash;{{ years[-1] }}</span>
+        {% elif section.year %}<span class="year">{{ section.source }} {{ section.year }}</span>{% endif %}
       </div>
       <p class="question">{{ section.area.QUESTION }}</p>
+      {% if highlights and section.area.KEY == "institution_characteristics" %}
+        {# Lives here, not as a page-top banner: institution characteristics
+           is this page's "who is this school, at a glance" area, and each
+           line is computed from another area's own already-shown figures
+           (see e.g. financial_aid.highlights) rather than a new claim. #}
+        <ul class="highlights">
+          {% for line in highlights %}
+            <li><span class="highlight-mark" aria-hidden="true">&#10024;</span> {{ line }}</li>
+          {% endfor %}
+        </ul>
+      {% endif %}
       {% if section.notices %}
         <ul class="notices">
           {% for notice in section.notices %}

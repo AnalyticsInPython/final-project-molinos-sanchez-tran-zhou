@@ -15,6 +15,7 @@ An area module is expected to define:
     SOURCE    str   optional: the survey behind it, default "IPEDS"
     ICON      str   inner markup for a 24x24 <svg>, stroked not filled
     TABLE     str   ingest table the year label is read from
+    SOURCE    str   agency/API the year label is credited to, e.g. "IPEDS"
     TEMPLATE  str   path under app/templates/
     load(conn, schools, year) -> dict    the template's context
     trend(conn, schools, years) -> dict   optional: the multi-year view
@@ -43,17 +44,27 @@ circulations differently enough that putting the columns side by side invites
 a comparison the data does not support.
 """
 
-from app.areas import athletics, financial_aid, selectiveness
+from app.areas import (
+    athletics,
+    enrollment,
+    financial_aid,
+    institution_characteristics,
+    outcomes,
+    selectiveness,
+)
 
 ALL = [
+    # Ordered as a student reads them: what it costs, whether they can get in,
+    # what it leads to, who is there, and the reference material last.
     financial_aid,
     selectiveness,
+    outcomes,
+    enrollment,
     athletics,
+    institution_characteristics,
     # Claim one and add it here:
     # student_charges,
     # retention,
-    # enrollment,
-    # institution_characteristics,
 ]
 
 BY_KEY = {area.KEY: area for area in ALL}
