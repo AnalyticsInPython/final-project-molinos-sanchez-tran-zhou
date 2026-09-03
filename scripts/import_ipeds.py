@@ -124,6 +124,10 @@ ENDPOINTS = {
     "fall_retention": ("fall-retention", TREND, "retention_and_graduation"),
     "grad_rates": ("grad-rates", TREND, "retention_and_graduation"),
     "grad_rates_pell": ("grad-rates-pell", TREND, "retention_and_graduation"),
+    # The only source of a four-year completion rate. grad_rates carries a
+    # completers_100pct column and it is the missing sentinel in all 225 rows
+    # of this sample, so on-time completion has to come from here.
+    "outcome_measures": ("outcome-measures", TREND, "retention_and_graduation"),
     "academic_libraries": ("academic-libraries", RECENT, "academic_libraries"),
     "student_faculty_ratio": ("student-faculty-ratio", RECENT, "institution_characteristics"),
     # Not one of the seven areas, but kept: degrees awarded by field.

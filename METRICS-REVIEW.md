@@ -102,7 +102,7 @@ stability it cannot support.
 | --- | ---: | ---: | ---: | --- | --- |
 | Student financial aid | 2021 | 5 | 7 | yes | **Trend should be the default.** See above. |
 | Selectiveness | 2024 | 2 | 10 | yes | Correct as is. Current, and the trend adds real signal. |
-| Retention and graduation | 2023 | 3 | 9 | yes | Correct as is. |
+| Retention and graduation | 2021 | 5 | 7 | yes | Correct as is. Now sourced from `outcome_measures`, which stops at 2021. |
 | After graduation | 2021 | 5 | 1 | **no** | **Correct that it has no trend.** See below. |
 | Enrollment | 2021 | 5 | 7 | yes | Under-warned. See below. |
 | Athletics | 2024 | 2 | 6 | yes | Correct as is. |

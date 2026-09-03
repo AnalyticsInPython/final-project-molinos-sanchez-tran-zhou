@@ -40,7 +40,10 @@ Ordered by value per hour. Build downward.
 
 ### Areas
 
-1. **Retention and graduation.** The strongest unbuilt area. `grad_rates_pell` breaks
+1. ~~**Retention and graduation.**~~ **Built.** Reframed from the Pell gap to on-time
+   versus eventual completion — the original note is kept below because the reasoning
+   about equity gaps still applies to the by-race spread the area shows.
+   The strongest unbuilt area. `grad_rates_pell` breaks
    completion out by Pell status and `grad_rates` by race, so the finding is an equity
    gap rather than a headline rate — Michigan is 82% for Black students against 96% for
    Asian, behind a 93% average. It is also the only area where the 25-school sample
