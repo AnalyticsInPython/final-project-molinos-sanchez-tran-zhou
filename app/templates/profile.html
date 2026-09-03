@@ -84,7 +84,7 @@
               {% endfor %}
             </select>
           </label>
-          <label>GPA <span class="opt">not compared</span>
+          <label><span class="label-text">GPA <span class="opt">not compared</span></span>
             <input class="field" type="number" name="gpa" min="0" max="4" step="0.01"
                    value="{{ profile.gpa if profile.gpa is not none else '' }}">
           </label>

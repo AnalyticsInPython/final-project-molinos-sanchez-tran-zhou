@@ -47,11 +47,11 @@
         knows your username can open this profile, so keep it to things you would not mind a
         classmate seeing.</p>
       <div class="field-row">
-        <label>Username
+        <label><span class="label-text">Username</span>
           <input class="field" type="text" name="username" required
                  placeholder="3&ndash;20 letters, numbers, - or _" autocomplete="off">
         </label>
-        <label>Name <span class="opt">optional</span>
+        <label><span class="label-text">Name <span class="opt">optional</span></span>
           <input class="field" type="text" name="display_name" placeholder="What we should call you">
         </label>
       </div>
@@ -66,9 +66,28 @@
       </p>
       <div class="stages">
         {% for value, label in stages.items() %}
-          <label class="radio">
+          <label class="stage-card">
             <input type="radio" name="stage" value="{{ value }}" {{ "checked" if loop.first }}>
-            {{ label }}
+            <svg class="stage-icon" viewBox="0 0 24 24" aria-hidden="true">
+              {% if value == "applying" %}
+                {# A map pin: still choosing where to go. #}
+                <path d="M12 21s7-5.6 7-11a7 7 0 1 0-14 0c0 5.4 7 11 7 11z"/>
+                <circle cx="12" cy="10" r="2.6"/>
+              {% else %}
+                {# Two envelopes: offers in hand, weighing them. #}
+                <rect x="2.5" y="7" width="13" height="10" rx="1.5"/>
+                <path d="M2.5 8.5l6.5 4.5 6.5-4.5"/>
+                <path d="M18 9.5h3.5v9H9v-2"/>
+              {% endif %}
+            </svg>
+            <span class="stage-label">{{ label }}</span>
+            <span class="stage-note">
+              {%- if value == "applying" -%}
+                We lead with how hard each school is to get into.
+              {%- else -%}
+                We lead with cost, and ask what each school offered you.
+              {%- endif -%}
+            </span>
           </label>
         {% endfor %}
       </div>
@@ -81,7 +100,7 @@
         out-of-state students very differently &mdash; Michigan is $17,193 against $55,097 for the
         same year &mdash; so without your state we cannot tell you which price is yours.
       </p>
-      <label class="narrow">Home state <span class="opt">optional</span>
+      <label class="narrow"><span class="label-text">Home state <span class="opt">optional</span></span>
         <select class="field" name="home_state">
           <option value="">Prefer not to say</option>
           {% for code in states %}<option value="{{ code }}">{{ code }}</option>{% endfor %}
@@ -95,7 +114,7 @@
         Net price is published by family income band. Pick yours and the comparison shows what
         families like yours actually paid, instead of a sticker price almost nobody pays.
       </p>
-      <label class="narrow">Family income <span class="opt">optional</span>
+      <label class="narrow"><span class="label-text">Family income <span class="opt">optional</span></span>
         <select class="field" name="income_bracket">
           <option value="">Prefer not to say</option>
           {% for level, label in bands.items() %}<option value="{{ level }}">{{ label }}</option>{% endfor %}
@@ -111,13 +130,13 @@
         a quarter of admitted students submitted a score at all.
       </p>
       <div class="field-row">
-        <label>SAT <span class="opt">400&ndash;1600</span>
+        <label><span class="label-text">SAT <span class="opt">400&ndash;1600</span></span>
           <input class="field" type="number" name="sat" min="400" max="1600" step="10">
         </label>
-        <label>ACT <span class="opt">1&ndash;36</span>
+        <label><span class="label-text">ACT <span class="opt">1&ndash;36</span></span>
           <input class="field" type="number" name="act" min="1" max="36">
         </label>
-        <label>GPA <span class="opt">0&ndash;4.0</span>
+        <label><span class="label-text">GPA <span class="opt">0&ndash;4.0</span></span>
           <input class="field" type="number" name="gpa" min="0" max="4" step="0.01">
         </label>
       </div>
@@ -136,13 +155,13 @@
         average. Skip this and you see the headline, which is the honest default.
       </p>
       <div class="field-row">
-        <label>Race <span class="opt">optional</span>
+        <label><span class="label-text">Race <span class="opt">optional</span></span>
           <select class="field" name="race">
             <option value="">Prefer not to say</option>
             {% for code, label in races.items() %}<option value="{{ code }}">{{ label }}</option>{% endfor %}
           </select>
         </label>
-        <label>Gender <span class="opt">optional</span>
+        <label><span class="label-text">Gender <span class="opt">optional</span></span>
           <select class="field" name="gender">
             <option value="">Prefer not to say</option>
             {% for code, label in genders.items() %}<option value="{{ code }}">{{ label }}</option>{% endfor %}
@@ -162,15 +181,14 @@
         <span class="opt">optional</span>
       </h2>
       <p class="panel-hint">
-        Up to {{ max_shortlist | default(10) }}. You can add and remove them later from your
+        Up to five. You can add and remove them later from your
         profile; this just saves retyping them.
         <span data-stage="choosing">Once they are saved you can enter what each one offered you,
         and we will set it against what that school usually charges families at your income.</span>
       </p>
-      <select class="field tall" name="school" multiple size="8">
-        {% for school in schools %}<option value="{{ school.unitid }}">{{ school.name }}</option>{% endfor %}
-      </select>
-      <p class="hint">Hold &#8984; or Ctrl to pick more than one.</p>
+      {% with picker_colors = false, picker_max = 5 %}
+        {% include "_school_picker.html" %}
+      {% endwith %}
     </section>
 
     <p class="hint" data-stage="choosing">
