@@ -1,4 +1,4 @@
-# Like for Like
+# In League
 
 **A college comparison tool that answers what a school will actually cost you, and
 whether it is better than the schools it resembles.**

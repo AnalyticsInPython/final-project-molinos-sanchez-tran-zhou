@@ -3,7 +3,7 @@
 {% block nav %}
   <nav class="topbar">
     <div class="inner">
-      <a class="brand" href="/">Like for Like</a>
+      <a class="brand" href="/">In League</a>
       <span class="nav-actions">
         {% if profile %}
           <a class="back" href="/profile">Signed in as {{ profile.name }}</a>
@@ -17,7 +17,7 @@
 {% endblock %}
 
 {% block content %}
-  <h1>Like for Like</h1>
+  <h1>In League</h1>
   <p class="lede">What a school actually costs at your family's income — not its sticker price.</p>
   {% if profile and profile.shortlist %}
     <p class="hint">
