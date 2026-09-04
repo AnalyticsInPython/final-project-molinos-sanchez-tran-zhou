@@ -71,14 +71,6 @@
     </li>
   </ol>
 
-  {% if profile and profile.shortlist %}
-    <p class="hint">
-      <a href="/compare?{% for u in profile.shortlist[:5] %}school={{ u }}{% if not loop.last %}&{% endif %}{% endfor %}">
-        Compare your {{ profile.shortlist | length }} saved school{{ "s" if profile.shortlist | length != 1 }} &rarr;
-      </a>
-    </p>
-  {% endif %}
-
   <form action="/compare" method="get" id="picker">
     <div class="picker-grid">
       <section class="panel">
@@ -90,6 +82,16 @@
         {% with picker_kind = "school", picker_colors = true, picker_max = 5 %}
           {% include "_school_picker.html" %}
         {% endwith %}
+
+        {# A shortcut into the picker, not around it: it fills the schools and
+           leaves the areas and years to be chosen. Only here — the areas
+           picker has nothing saved to offer, and the sign-up questionnaire is
+           where a shortlist is built rather than reused. #}
+        {% if profile and profile.shortlist %}
+          <p class="hint">
+            <button type="button" id="use-shortlist">Use my saved schools</button>
+          </p>
+        {% endif %}
       </section>
 
       <section class="panel">
@@ -138,6 +140,12 @@
      "titles": { {% for a in areas %}{{ a.KEY | tojson }}: {{ a.TITLE | tojson }}{{ "," if not loop.last }}{% endfor %} }}
   </script>
 
+  {# The whole shortlist, uncapped: the picker's own max decides how many of
+     them fit, so the cap is not written down twice. #}
+  {% if profile and profile.shortlist %}
+    <script type="application/json" id="shortlist-data">{{ profile.shortlist | tojson }}</script>
+  {% endif %}
+
 {% endblock %}
 
 {% block scripts %}
@@ -171,6 +179,26 @@
   // A comparison needs at least one of each. Neither alone renders anything.
   function refreshSubmit() {
     submit.disabled = chosen.length === 0 || areasChosen.length === 0;
+  }
+
+  // The reverse direction, through the same door: the picker listens for
+  // `schools-preset` and adds the ids exactly as if they had been typed one at
+  // a time, so the chips, the brand colours, the hidden fields, the count and
+  // the clash check are the ones it builds for itself. Only the schools are
+  // filled — the areas and years are still the reader's to choose.
+  const shortlist = document.getElementById("shortlist-data");
+  const useShortlist = document.getElementById("use-shortlist");
+  if (shortlist && useShortlist) {
+    useShortlist.addEventListener("click", () => {
+      document.dispatchEvent(
+        new CustomEvent("schools-preset", {
+          detail: { ids: JSON.parse(shortlist.textContent) },
+        })
+      );
+      // Nothing left for it to do: the picker keeps only the first few, and a
+      // second click would add nothing.
+      useShortlist.disabled = true;
+    });
   }
 
   // Areas come from their own picker, announced the same way schools are.

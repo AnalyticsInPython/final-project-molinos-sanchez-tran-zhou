@@ -226,9 +226,7 @@
         <p class="hint">
           {{ shortlist | length }} of {{ max_shortlist }} saved.
           {% if shortlist | length > 1 %}
-            <a href="/compare?{% for s in shortlist[:5] %}school={{ s.unitid }}&color={{ s.color | urlencode }}{% if not loop.last %}&{% endif %}{% endfor %}">
-              Compare your saved schools &rarr;
-            </a>
+            <a href="/">Pick areas for your saved schools &rarr;</a>
           {% endif %}
         </p>
       {% endif %}
