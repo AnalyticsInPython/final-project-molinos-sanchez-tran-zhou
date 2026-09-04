@@ -18,8 +18,8 @@ uv run python scripts/seed_demo.py
 It resets rather than tops up, so a second run leaves one profile with exactly those
 answers and exactly those five schools in that order, and a stale sixth school from
 an earlier run is removed. It prints the compare link for the five in their brand
-colours — the same link the profile page builds — which is the URL under *Compare*
-below. `--db PATH` points it at another database; the default is `data/profiles.db`.
+colours, which is the URL under *Compare* below and the same one the picker builds
+after **Use my saved schools**. `--db PATH` points it at another database; the default is `data/profiles.db`.
 
 The account is still created **live on stage as `maya-live`** — creating it is the
 demo. `maya` is the fallback that already exists if the live sign-up goes wrong.
@@ -58,8 +58,10 @@ every URL from *Compare* onward needs that cookie for the tailoring to fire.
 | 2:45–6:15 | Financial aid, selectiveness and retention, tailored | the tailored URL below |
 | 3:45 | Financial aid on its own, all available years | the trend URL below |
 
-**Compare** — five schools, brand colours, every area. Reached by clicking *Compare
-your saved schools* on the profile page, and printed by the seed script:
+**Compare** — five schools, brand colours, every area. This is the every-area page,
+kept as a fallback and printed by the seed script. On stage the route is the picker:
+*Pick areas for your saved schools* on the profile, then **Use my saved schools**,
+then choose the areas and years and press Compare.
 
 ```
 http://127.0.0.1:8001/compare?school=110635&color=%23003262&school=243744&color=%238c1515&school=166683&color=%23a31f34&school=211440&color=%23c41230&school=170976&color=%2300274c

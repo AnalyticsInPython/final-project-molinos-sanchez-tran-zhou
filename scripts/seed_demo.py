@@ -92,9 +92,9 @@ def compare_url(unitids: list[int]) -> str:
     """The compare link for a shortlist, as `profile.html` builds it.
 
     Same shape, same order, same colours — `school=` and `color=` in matched
-    pairs, the hash of a hex colour percent-encoded — because the demo either
-    clicks *Compare your saved schools* on the profile page or pastes this,
-    and the two must land on identical pages. Every school here has a brand
+    pairs, the hash of a hex colour percent-encoded — because this is the
+    fallback route to the comparison and it must land on the same page the
+    picker builds after *Use my saved schools*. Every school here has a brand
     colour, so `brand_color`'s palette fallback never fires.
     """
     pairs = []
@@ -132,7 +132,7 @@ def main() -> None:
         color = brand_color(unitid, position - 1)
         print(f"    {position}. {unitid}  {SHORT_NAMES.get(unitid, '?'):<15} {color}")
 
-    print("\nCompare your saved schools:\n")
+    print("\nEvery-area fallback link for these five:\n")
     print(f"  {compare_url(profile.shortlist)}")
 
 
