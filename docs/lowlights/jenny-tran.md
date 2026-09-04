@@ -1,17 +1,14 @@
 # Lowlights — Jenny Tran
 
 **1. It redesigned the one thing I asked it not to touch.**
-I asked Claude to make the landing page prettier — nicer visuals, better
-buttons, that's it. What came back had also swapped out the school picker for
+I asked Claude to make the landing page prettier (nicer visuals, better
+buttons). What came back had also swapped out the school picker for
 a new browse-grid I never asked for. Nothing was technically broken; it just
 wasn't what I said. I think what happened is that "make it nicer" and "make
 it better" quietly became the same instruction to it, and the picker looked
 like a place it could improve. I made it revert the picker outright and told
-it, plainly, to leave selection alone. The annoying part is what came after:
-I didn't trust that boundary anymore, so I found myself repeating "don't
-touch the picker" on almost every request for the rest of the project, even
-when there was no reason to think it would wander again. One overreach and I
-was doing the fencing myself from then on.
+it, plainly, to leave selection alone. The annoying part is I found myself repeating "don't
+touch the picker" on almost every request for the rest of the project.
 
 **2. A button nobody could read, and the tests said everything was fine.**
 Days after Claude added a green gradient "Compare" button, I looked at the
