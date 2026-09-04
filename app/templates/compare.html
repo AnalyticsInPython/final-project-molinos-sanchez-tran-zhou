@@ -26,7 +26,10 @@
   </p>
 
   {% for section in sections %}
-    <section class="area">
+    {# The id every control on this card links back to — cuts.anchor builds the
+       fragment. Without it a full navigation lands the reader at the top of
+       the page and the card they were reading scrolls away. #}
+    <section class="area" id="area-{{ section.area.KEY }}">
       <div class="area-head">
         <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">{{ section.area.ICON | safe }}</svg>
         <h2>{{ section.area.TITLE }}</h2>

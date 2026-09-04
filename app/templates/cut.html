@@ -36,15 +36,19 @@
       {% for bar in f.bars %}
         <text x="{{ f.label_x }}" y="{{ bar.text_y }}" text-anchor="end"
               font-size="12" fill="#17211d">{{ bar.name }}</text>
+        {# Three roles, three shapes — see cuts.figure. Drawn lightest first so
+           the reader's own group is never hidden under another mark. #}
         {% for dot in bar.dots if not dot.own %}
-          <circle cx="{{ dot.x }}" cy="{{ bar.y }}" r="4" fill="#a8791f" opacity=".8">
+          <polygon points="{{ dot.points }}" fill="#a8791f" opacity=".8"
+                   stroke="#fff" stroke-width=".6">
             <title>{{ bar.name }} — {{ dot.label }}</title>
-          </circle>
+          </polygon>
         {% endfor %}
-        <circle cx="{{ bar.x_total }}" cy="{{ bar.y }}" r="6" fill="none"
-                stroke="#17211d" stroke-width="1.8">
+        <rect x="{{ bar.everyone.x }}" y="{{ bar.everyone.y }}"
+              width="{{ bar.everyone.side }}" height="{{ bar.everyone.side }}"
+              fill="none" stroke="#17211d" stroke-width="1.8">
           <title>{{ bar.name }} — everyone: {{ bar.total }}</title>
-        </circle>
+        </rect>
         {% for dot in bar.dots if dot.own %}
           <circle cx="{{ dot.x }}" cy="{{ bar.y }}" r="6.5" fill="{{ bar.color }}"
                   stroke="#fff" stroke-width="2">
@@ -56,14 +60,39 @@
         </text>
       {% endfor %}
     </svg>
+    {# The key draws the chart's own three marks at the chart's own proportions,
+       so a reader can match key to mark by shape. The reader's own group is
+       filled with each school's brand colour — a different colour on every
+       row — so its key is one circle per school, in the order the rows are
+       drawn, and the words say as much; no single swatch could. The triangle
+       names the groups it stands for, from `c.columns`, rather than calling
+       them "other"; a dimension with more groups than fit says how many. #}
+    {% set ns = namespace(rest=[]) %}
+    {% for code, label in c.columns if code != c.emphasis %}{% set ns.rest = ns.rest + [label] %}{% endfor %}
     <p class="keys">
       {% if c.emphasis is not none %}
-        <span><span class="dot" style="background: #17211d"></span> {{ c.own_label }}</span>
-        <span><span class="dot" style="background: #a8791f"></span> Other groups</span>
-      {% else %}
-        <span><span class="dot" style="background: #a8791f"></span> One group</span>
+        <span>
+          <span style="display: flex; gap: .15rem">
+            {% for bar in f.bars %}<svg width="12" height="12" viewBox="0 0 15 15" style="flex: none" aria-hidden="true"><circle cx="7.5" cy="7.5" r="6.5" fill="{{ bar.color }}"></circle></svg>{% endfor %}
+          </span>
+          {{ c.own_label }}, in each school&rsquo;s colour
+        </span>
       {% endif %}
-      <span><span class="dot" style="background: #fff; box-shadow: inset 0 0 0 1.5px #17211d"></span> Everyone</span>
+      <span>
+        <svg width="12" height="12" viewBox="0 0 15 15" style="flex: none" aria-hidden="true">
+          <polygon points="7.5,3.3 2.9,11.7 12.1,11.7" fill="#a8791f" opacity=".8"></polygon>
+        </svg>
+        {%- if ns.rest | length <= 3 %} {{ ns.rest | join(', ') }}
+        {%- elif c.emphasis is not none %} {{ ns.rest | length }} other {{ c.cut.label | lower }} groups
+        {%- else %} One {{ c.cut.label | lower }} group{% endif %}
+      </span>
+      <span>
+        <svg width="12" height="12" viewBox="0 0 15 15" style="flex: none" aria-hidden="true">
+          <rect x="2.25" y="2.25" width="10.5" height="10.5" fill="none"
+                stroke="#17211d" stroke-width="1.8"></rect>
+        </svg>
+        Everyone
+      </span>
     </p>
   {% endif %}
 

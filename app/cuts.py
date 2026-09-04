@@ -43,6 +43,12 @@ MIN_COHORT = 30
 # The code every IPEDS dimension uses for its published total.
 TOTAL = 99
 
+# The three marks a cut draws, in SVG units, sized to carry a similar weight.
+# See figure() for why the roles are told apart by shape and not by colour.
+OWN_R = 6.5  # radius of the reader's own group, filled with the school's colour
+GROUP_W, GROUP_H = 4.6, 4.2  # half-width and half-height of another group's triangle
+TOTAL_SIDE = 10.5  # side of the hollow square standing for everyone
+
 
 @dataclass(frozen=True)
 class Cut:
@@ -145,12 +151,24 @@ def parse_tailor(values: list[str] | None) -> set[str]:
     return {v for v in values or [] if v}
 
 
+def anchor(area_key: str) -> str:
+    """The fragment naming one area's card. compare.html gives the section this id.
+
+    Every control on a card is a plain link doing a full navigation — the URL
+    is the whole state and there is no JavaScript to preserve the scroll — so
+    without the fragment, choosing a breakdown on the third card down answers
+    by loading a fresh page at the top and the card the reader was reading
+    scrolls out of sight.
+    """
+    return f"#area-{area_key}"
+
+
 def link(params: list[tuple[str, str]], area_key: str, dimension: str | None) -> str:
     """The current query with this one area's cut replaced, or removed."""
     kept = [(k, v) for k, v in params if not (k == "cut" and v.split(":")[0] == area_key)]
     if dimension:
         kept.append(("cut", f"{area_key}:{dimension}"))
-    return "/compare?" + urlencode(kept)
+    return "/compare?" + urlencode(kept) + anchor(area_key)
 
 
 def tailor_link(params: list[tuple[str, str]], area_key: str, on: bool) -> str:
@@ -158,7 +176,7 @@ def tailor_link(params: list[tuple[str, str]], area_key: str, on: bool) -> str:
     kept = [(k, v) for k, v in params if not (k == "tailor" and v == area_key)]
     if on:
         kept.append(("tailor", area_key))
-    return "/compare?" + urlencode(kept)
+    return "/compare?" + urlencode(kept) + anchor(area_key)
 
 
 def context(
@@ -238,12 +256,43 @@ def context(
     }
 
 
-def figure(cut: Cut, rows: list[dict], emphasis: int | None) -> dict | None:
-    """One row per school: a dot per group, everyone as a hollow marker.
+def _triangle(cx: float, cy: float) -> str:
+    """Another group: an upright triangle centred on (cx, cy), as polygon points.
 
-    Tailored, the reader's group is the solid coloured dot and the right-hand
-    text is its distance from everyone. Asked for, every group is a dot and the
-    text names the lowest and highest.
+    Centred on its bounding box rather than its circumcircle, so it sits on the
+    same optical line as the circle and the square beside it.
+    """
+    return (
+        f"{cx:.1f},{cy - GROUP_H:.1f} "
+        f"{cx - GROUP_W:.1f},{cy + GROUP_H:.1f} "
+        f"{cx + GROUP_W:.1f},{cy + GROUP_H:.1f}"
+    )
+
+
+def _square(cx: float, cy: float) -> dict:
+    """Everyone: a hollow square centred on (cx, cy), as an SVG rect."""
+    return {
+        "x": round(cx - TOTAL_SIDE / 2, 1),
+        "y": round(cy - TOTAL_SIDE / 2, 1),
+        "side": TOTAL_SIDE,
+    }
+
+
+def figure(cut: Cut, rows: list[dict], emphasis: int | None) -> dict | None:
+    """One row per school: a mark per group, everyone as a hollow marker.
+
+    Tailored, the reader's group is the solid mark and the right-hand text is
+    its distance from everyone. Asked for, every group is a mark and the text
+    names the lowest and highest.
+
+    **Three roles, three shapes**, and the shape rather than the colour is what
+    carries the role. The reader's own group is a circle filled with the
+    school's own brand colour — the identity every chart and chip on the page
+    uses, and therefore a different colour on every row — so no single swatch
+    can stand for it in a key. A shape can: the key draws the same circle,
+    triangle and square the chart does, and says the circle takes each school's
+    colour. Geometry lives here beside the rest of the layout so the template
+    stays declarative and the two agree by construction.
     """
     entries = [r for r in rows if r["total"] is not None and r["rates"]]
     if not entries:
@@ -305,11 +354,12 @@ def figure(cut: Cut, rows: list[dict], emphasis: int | None) -> dict | None:
                 "color": row["school"].color,
                 "y": round(y, 1),
                 "text_y": round(y + 4, 1),
-                "x_total": round(x(row["total"]), 1),
+                "everyone": _square(x(row["total"]), y),
                 "total": pct(row["total"]),
                 "dots": [
                     {
                         "x": round(x(rate), 1),
+                        "points": _triangle(x(rate), y),
                         "label": f"{labels[code]}: {pct(rate)}",
                         "own": code == emphasis,
                     }

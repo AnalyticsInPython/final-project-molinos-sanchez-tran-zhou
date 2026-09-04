@@ -6,9 +6,11 @@ and "unknown" is never drawn while "international" is drawn only as someone's
 own group (`test_reporting_categories_are_not_offered_as_groups`).
 """
 
+import re
+
 import pytest
 
-from app import cuts
+from app import codes, cuts
 from app.areas import retention, selectiveness
 from app.db import DB_PATH, connect, latest_year
 from app.profiles import Profile
@@ -38,6 +40,31 @@ def _row(context, unitid):
     return next(r for r in context["rows"] if r["school"].unitid == unitid)
 
 
+def _keys(page: str) -> list[str]:
+    """The key drawn under each cut chart. Other areas draw keys of their own;
+    only a cut's keys "Everyone", the published total it is measured against."""
+    blocks = re.findall(r'<p class="keys">(.*?)</p>', page, re.S)
+    return [block for block in blocks if "Everyone" in block]
+
+
+def _reader(tmp_path, monkeypatch, **columns):
+    """A signed-in client whose profile holds the given answers."""
+    pytest.importorskip("httpx")
+    from fastapi.testclient import TestClient
+
+    from app import profiles
+    from app.main import app
+
+    real_connect = profiles.connect
+    monkeypatch.setattr(profiles, "connect", lambda: real_connect(tmp_path / "profiles.db"))
+    with profiles.connect() as pconn:
+        profiles.get_or_create(pconn, "reader")
+        for column, value in columns.items():
+            pconn.execute(f"UPDATE profiles SET {column} = ? WHERE username = 'reader'", (value,))
+        pconn.commit()
+    return TestClient(app, cookies={"profile": "reader"})
+
+
 # --- URL state --------------------------------------------------------------
 
 
@@ -53,18 +80,24 @@ def test_the_link_replaces_one_areas_cut_and_keeps_the_rest():
     params = [("school", "1"), ("school", "2"), ("cut", "retention:race"), ("year", "2021")]
     href = cuts.link(params, "selectiveness", "sex")
     assert href == (
-        "/compare?school=1&school=2&cut=retention%3Arace&year=2021&cut=selectiveness%3Asex"
+        "/compare?school=1&school=2&cut=retention%3Arace&year=2021"
+        "&cut=selectiveness%3Asex#area-selectiveness"
     )
-    assert cuts.link(params, "retention", None) == "/compare?school=1&school=2&year=2021"
+    assert (
+        cuts.link(params, "retention", None)
+        == "/compare?school=1&school=2&year=2021#area-retention"
+    )
 
 
 def test_the_link_carries_the_area_not_the_person():
     """Tailoring is a per-area flag. The reader's code is resolved server-side
     from the profile, so a shared URL never says what the sharer's race or sex is."""
     on = cuts.tailor_link([("school", "1")], "selectiveness", True)
-    assert on == "/compare?school=1&tailor=selectiveness"
+    assert on == "/compare?school=1&tailor=selectiveness#area-selectiveness"
     both = [("school", "1"), ("tailor", "selectiveness"), ("tailor", "retention")]
-    assert cuts.tailor_link(both, "retention", False) == "/compare?school=1&tailor=selectiveness"
+    assert cuts.tailor_link(both, "retention", False) == (
+        "/compare?school=1&tailor=selectiveness#area-retention"
+    )
     assert cuts.parse_tailor(["retention", "", "selectiveness"]) == {"retention", "selectiveness"}
 
 
@@ -313,3 +346,88 @@ def test_tailoring_reads_the_profile_and_never_the_url(tmp_path, monkeypatch):
     empty = TestClient(app, cookies={"profile": "blank"}).get(base).text
     assert "Add your sex to your profile" in empty
     assert "Add your race to your profile" in empty
+
+
+# --- the key under the chart ----------------------------------------------------
+
+
+def test_the_key_draws_the_marks_the_chart_draws(tmp_path, monkeypatch, conn):
+    """Three roles, three shapes, and the key repeats them rather than
+    describing them in a colour of its own.
+
+    The reader's own group is a circle filled with each school's brand colour —
+    a different colour on every row — so the key carries those colours and says
+    so. It used to show one near-black swatch, a colour that appears nowhere on
+    the chart but as the outline of the "everyone" square: a dot the reader
+    would look for and never find. The groups beside it are named from
+    `c.columns`, never spelled out in the template.
+    """
+    client = _reader(tmp_path, monkeypatch, gender=2, race=3)
+    base = f"/compare?school={MICHIGAN}&school={BROWN}&area=selectiveness&area=retention"
+    page = client.get(base + "&tailor=selectiveness&tailor=retention").text
+    sex = next(k for k in _keys(page) if codes.SEX[2] in k)
+    race = next(k for k in _keys(page) if "Hispanic" in k)
+
+    assert "Other groups" not in page, "name the groups drawn, do not lump them"
+    for shape in ("<circle", "<polygon", "<rect"):
+        assert shape in sex and shape in race, f"the key is missing the {shape} mark"
+
+    # Sex draws two groups, so both are named and the reader's own says whose
+    # colour it takes: one circle per school, in that school's own colour.
+    assert f"{codes.SEX[2]}, in each school" in sex
+    assert re.search(rf"</svg>\s*{codes.SEX[1]}\s*</span>", sex), sex
+    colors = [school.color for school in selected(conn, [MICHIGAN, BROWN])]
+    assert sex.count("<circle") == len(colors)
+    for color in colors:
+        assert f'fill="{color}"' in sex
+    # No fixed colour is claimed for the reader's own group. #17211d strokes
+    # the hollow square and fills nothing.
+    assert 'fill="#17211d"' not in sex and "background: #17211d" not in sex
+
+    # Seven race groups would not fit on one line, so the key counts the rest
+    # rather than listing them — and still never calls them "other groups".
+    assert "Hispanic, in each school" in race
+    assert "6 other race groups" in race
+    assert "Native Hawaiian" not in race
+
+
+def test_the_key_names_the_groups_when_nothing_is_emphasised():
+    """Asked for rather than tailored, there is no own group: every group is a
+    triangle, so the key draws no circle and names the groups where they fit."""
+    pytest.importorskip("httpx")
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    base = f"/compare?school={MICHIGAN}&school={BROWN}&area=selectiveness&area=retention"
+    page = TestClient(app).get(base + "&cut=selectiveness:sex&cut=retention:race").text
+    sex = next(k for k in _keys(page) if f"{codes.SEX[1]}, {codes.SEX[2]}" in k)
+    race = next(k for k in _keys(page) if "race group" in k)
+
+    assert "One group" not in page, "say which dimension the groups belong to"
+    assert f"{codes.SEX[1]}, {codes.SEX[2]}" in sex
+    assert "One race group" in race
+    for key in (sex, race):
+        assert "<circle" not in key, "no group is drawn in a school colour here"
+        assert "<polygon" in key and "<rect" in key
+
+
+def test_every_card_control_links_back_to_its_own_card(tmp_path, monkeypatch):
+    """Every control on a card is a plain link doing a full navigation — "Show
+    by", "Everyone only", "Tailor data for me" — so each carries its own card's
+    fragment: without
+    it, changing the third card down answers by loading the page at the top and
+    the card the reader was reading scrolls out of sight. A fragment matching
+    no id is a silent no-op, so the ids compare.html renders are checked too."""
+    client = _reader(tmp_path, monkeypatch, gender=2, race=3)
+    base = f"/compare?school={MICHIGAN}&school={BROWN}&area=selectiveness&area=retention"
+    page = client.get(base + "&cut=selectiveness:sex").text
+
+    ids = set(re.findall(r'<section class="area" id="([^"]+)"', page))
+    assert ids == {cuts.anchor(key)[1:] for key in ("selectiveness", "retention")}
+
+    menus = re.findall(r'<details class="cuts">(.*?)</details>', page, re.S)
+    tailors = re.findall(r'<a class="tailor[^"]*" href="([^"]+)"', page)
+    assert len(menus) == 2 and len(tailors) == 2, "one menu and one tailor button per card"
+    for href in [h for menu in menus for h in re.findall(r'href="([^"]+)"', menu)] + tailors:
+        assert href.partition("#")[2] in ids, f"{href} would land the reader at the page top"
