@@ -32,6 +32,22 @@ def test_every_area_says_what_its_year_means(conn):
             assert text and text.endswith("."), (module.KEY, trend)
 
 
+def test_every_year_meaning_is_one_short_line(conn):
+    """It sits between the question and the first chart, so it costs chart.
+
+    At the projector viewport the demo runs at — a 1024px viewport, so a card
+    about 860px wide — this line wraps at roughly 130 characters. Anything
+    longer is a second line above the fold, on a card that already carries a
+    notice or two. The long form of each of these lives in the card's own
+    footnote instead; see e.g. templates/areas/retention.html.
+    """
+    for module in areas.ALL:
+        year = latest_year(conn, module.TABLE)
+        for trend in (False, True):
+            text = module.year_meaning(conn, year, trend)
+            assert len(text) <= 120, (module.KEY, trend, len(text), text)
+
+
 def test_retention_reads_the_cohort_from_the_table(conn):
     from app.areas import retention
 
@@ -42,6 +58,14 @@ def test_retention_reads_the_cohort_from_the_table(conn):
     ).fetchone()[0]
     assert started < year - 5, "a six-year rate cannot describe a recent cohort"
     text = retention.year_meaning(conn, year)
+    # The sentence shortened for the projector — four sentences became one,
+    # "Every graduation figure labelled 2021 follows one class — students who
+    # started in fall 2014 — counted at four years and again at six" is now
+    # "2021 is one class, started in fall 2014, counted at four years and
+    # again at six" — and these four assertions are the reason the short form
+    # is worded the way it is rather than any shorter. They still check what
+    # they always checked: one cohort behind both graduation rates, which
+    # fall it entered, and retention named as a different class.
     assert f"started in fall {started}" in text
     assert "one class" in text and "four years and again at six" in text, (
         "the four- and six-year rates share a cohort and the page must say so"
