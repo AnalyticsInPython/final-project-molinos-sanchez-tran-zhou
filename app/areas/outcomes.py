@@ -80,11 +80,16 @@ QUERY = """
 
 
 def year_meaning(conn: sqlite3.Connection, year: int, trend: bool = False) -> str:
-    """Three cohorts, none of them a graduating class — see the module docstring."""
+    """Three cohorts, none of them a graduating class — see the module docstring.
+
+    Which entry years go with which figure, and the 2020–21 release they were
+    all measured in, are in the card's footnote in templates/areas/
+    outcomes.html. This line is the part a reader has to have before reading
+    the chart: the three numbers are not three views of one group.
+    """
     return (
-        "Three different groups of students: earnings six years after entry are for those who "
-        "entered in 2013–15 and ten years for those who entered in 2009–11, both measured in "
-        "2020–21; median debt is for 2020–21 completers who borrowed."
+        "Three different groups: earnings for those who entered in 2013–15 and 2009–11, "
+        "debt for 2020–21 completers."
     )
 
 

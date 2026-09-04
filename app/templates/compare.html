@@ -90,7 +90,20 @@
               <span class="notice-mark" aria-hidden="true">
                 {%- if notice.level == "warn" %}&#9888;{% else %}&#9432;{% endif -%}
               </span>
-              <span>{{ notice.text }}</span>
+              {# Present mode keeps the sentence that names the problem and
+                 folds the rest away, so two notices are two lines rather than
+                 five and the chart is on the first screen. Nothing is
+                 dropped and nothing is rewritten: it is the same text, cut in
+                 two by notices.first_sentence, and normal mode below is
+                 untouched. #}
+              {% if present_mode(request) %}
+                {% set opening, rest = notice.text | first_sentence %}
+                <span>{{ opening }}{% if rest %}
+                  <details><summary>more</summary> {{ rest }}</details>
+                {% endif %}</span>
+              {% else %}
+                <span>{{ notice.text }}</span>
+              {% endif %}
             </li>
           {% endfor %}
         </ul>

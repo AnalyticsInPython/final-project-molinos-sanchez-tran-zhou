@@ -25,6 +25,7 @@ After graduation is the College Scorecard, and blaming the wrong agency for a
 gap is a factual error on the page rather than a vague one.
 """
 
+import re
 from dataclasses import dataclass
 from datetime import date
 
@@ -316,3 +317,34 @@ def for_area(
         single_release=single_release,
     )
     return ([age] if age else []) + list(coverage)
+
+
+# A sentence ends at . ! or ?, then whitespace, then something that starts a
+# new one. The lookbehind excludes a capital letter immediately before the
+# stop, which is how "U.S. News" and any other initial stays in one piece;
+# decimals and amounts are already safe, since "3.9%" and "$48,000.50" have no
+# space after the point.
+#
+# Deliberately a rule of thumb rather than a parser, because both ways of
+# being wrong are harmless here: an unrecognised break shows the notice whole,
+# exactly as normal mode does, and a break in the wrong place still leaves
+# every word on the card, one click below the fold it was folded into.
+_SENTENCE_END = re.compile(r"(?<=[a-z0-9%)\"'”][.!?])\s+(?=[A-Z“\"(])")
+
+
+def first_sentence(text: str) -> tuple[str, str]:
+    """A notice split into its opening sentence and everything after it.
+
+    Present mode shows the first half and hides the second behind a
+    `<details>`, so a card leads with its charts instead of with two or three
+    two-line caveats — on a projector those filled the screen before any data
+    did. Nothing is dropped: the rest is one click away, and normal mode still
+    shows the whole paragraph.
+
+    Returns the text unchanged as the first half, and an empty second half,
+    when there is only one sentence to show.
+    """
+    match = _SENTENCE_END.search(text or "")
+    if not match:
+        return (text or "").strip(), ""
+    return text[: match.start()].strip(), text[match.end() :].strip()

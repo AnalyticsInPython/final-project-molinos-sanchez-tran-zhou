@@ -13,6 +13,12 @@ None or one is a snapshot, which is the default and what most people want.
 Two or more is a trend, drawn against a single window shared by every area so
 the areas stay comparable to each other.
 
+`/present/on` and `/present/off` are a third rendering, and the only one that
+is not about the data: the same page with the charts enlarged and the tables
+and footnotes put away, for showing on a projector. It is a cookie, so it
+survives the whole walk through the app rather than having to be added to
+every link on it.
+
 `/profile` and its POST routes are a second, optional layer on top: a
 username-only profile (see app/profiles.py) that remembers scores, an income
 bracket, and a shortlist, so a returning visitor doesn't retype them. Nothing
@@ -33,7 +39,7 @@ from fastapi.templating import Jinja2Templates
 from app import areas, cuts, env, offers, profiles
 from app.db import connect, latest_year, series_ends, years_available
 from app.format import money, number, percent
-from app.notices import for_area
+from app.notices import first_sentence, for_area
 from app.schools import all_schools, selected
 
 env.load()
@@ -55,6 +61,11 @@ templates.env.filters["number"] = number
 # Empty string, not missing, when unset — the map template checks truthiness
 # and renders a "no key" note rather than a broken map.
 templates.env.globals["maptiler_key"] = os.environ.get("MAPTILER_API_KEY", "")
+# Present mode's one piece of template logic beyond a body class: a notice
+# shown as its first sentence, with the rest folded into a <details>. The
+# split is in app/notices.py, where it can be tested; the template only
+# decides where the two halves go. See `first_sentence` there.
+templates.env.filters["first_sentence"] = first_sentence
 
 # Five is the practical ceiling: past that the tables stop fitting and the
 # chart stops being readable.
@@ -88,9 +99,79 @@ STAGE_LEADS = {
 PROFILE_COOKIE = "profile"
 PROFILE_COOKIE_MAX_AGE = 180 * 24 * 60 * 60
 
+# Present mode: the same pages, sized for a projector. A cookie rather than a
+# `present=1` on the URL because the demo walks a path — the picker's form
+# submit, then a "Show by" link, then "Tailor data for me" — and each of those
+# builds its own next URL. A parameter would have to be threaded through every
+# one of them; a cookie is carried by the browser and nothing else has to know
+# it exists.
+#
+# Half a day, not the profile's six months: leaving the class in present mode
+# should not still be showing hidden tables next term.
+PRESENT_COOKIE = "present"
+PRESENT_COOKIE_MAX_AGE = 12 * 60 * 60
+
 
 def _current_username(request: Request) -> str | None:
     return profiles.clean_username(request.cookies.get(PROFILE_COOKIE))
+
+
+def present_mode(request: Request) -> bool:
+    """Is this browser in present mode?
+
+    Registered as a template global below, so `base.html` can put the class on
+    `<body>` and `compare.html` can fold its notices without every route
+    having to remember to pass a flag.
+    """
+    return request.cookies.get(PRESENT_COOKIE) == "1"
+
+
+templates.env.globals["present_mode"] = present_mode
+
+
+def safe_next(target: str | None) -> str:
+    """The page to return to after toggling, when it is a page of ours.
+
+    The toggle carries wherever the reader was as `?next=`, which is exactly
+    the shape an open redirect takes: `/present/on?next=https://elsewhere` puts
+    our own domain in front of somebody else's page. So only a path on this
+    app is honoured — one leading slash and no more, since `//host` and its
+    backslash spelling are both read by browsers as a different site — and
+    anything else falls back to the front page rather than being followed.
+    """
+    target = (target or "").strip()
+    if not target.startswith("/"):
+        return "/"
+    if target.startswith(("//", "/\\")):
+        return "/"
+    return target
+
+
+@app.get("/present/on")
+def present_on(next_: Annotated[str, Query(alias="next")] = "/"):
+    """Turn present mode on and go back where the reader was.
+
+    Back to the page, not to the spot on it: a fragment never reaches the
+    server, so toggling from halfway down the comparison lands at its top.
+    Turning present mode on is a thing done once, before the demo starts.
+    """
+    response = RedirectResponse(safe_next(next_), status_code=303)
+    response.set_cookie(
+        PRESENT_COOKIE,
+        "1",
+        max_age=PRESENT_COOKIE_MAX_AGE,
+        httponly=True,
+        samesite="lax",
+    )
+    return response
+
+
+@app.get("/present/off")
+def present_off(next_: Annotated[str, Query(alias="next")] = "/"):
+    """Back to the page as everyone else sees it."""
+    response = RedirectResponse(safe_next(next_), status_code=303)
+    response.delete_cookie(PRESENT_COOKIE)
+    return response
 
 
 @app.get("/")

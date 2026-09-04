@@ -197,9 +197,13 @@ def cut(
 def year_meaning(conn: sqlite3.Connection, year: int, trend: bool = False) -> str:
     if trend:
         return "Each year is the class entering that fall: applications, admits and enrolments."
+    # One line, because it sits above the charts and every line it wraps to on
+    # a projector is a line of chart pushed off the screen. "For that autumn"
+    # said the same thing twice; the footnote below the table carries what
+    # these counts do and do not cover.
     return (
-        f"Figures labelled {year} are for the class that entered in fall {year}: "
-        f"applications, admits and enrolments for that autumn."
+        f"Figures labelled {year} are the class that entered in fall {year}: "
+        f"applications, admits and enrolments."
     )
 
 
