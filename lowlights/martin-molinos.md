@@ -2,7 +2,7 @@
 
 Martin Molinos — In League (Molinos, Sanchez, Tran, Zhou)
 
-Five things I watched go wrong while working with Claude this week. Other things
+Four things I watched go wrong while working with Claude this week. Other things
 went wrong on this project that my teammates caught; these are the ones I was in
 the loop for.
 
@@ -69,26 +69,9 @@ raised the one that made the task unnecessary.
 **What I did.** Asked Rafael for the key. Now I ask what a task is for before I
 start it, not halfway through.
 
-## 5. The exercise that turned into a testing tutorial
-
-In the buggy-reports exercise we were meant to find the bugs planted in the code,
-and the teacher had said to find them without the agent's help.
-
-**How I noticed.** I'd fixed two and asked what testing a programmer would do
-next. It came back with six techniques and commands to generate adversarial
-filenames. I said I didn't think I was supposed to be doing all this — the point
-was the problems already in the code — and that we should stick to the sample
-data.
-
-**What went wrong.** It answered my question well and lost the assignment doing
-it. Its reply was "You're right, and I overshot."
-
-**What I did.** Pulled it back and finished the bugs. It follows the question you
-asked, not the task you're on, and I'm the only one holding the task.
-
 ## The pattern
 
-None of these came from a test, and none from an error message. All five came
-from being unconvinced by a confident answer. In three of them I couldn't say
+None of these came from a test, and none from an error message. All four came
+from being unconvinced by a confident answer. In three of the four I couldn't say
 what was wrong — only that something was, and that I wasn't accepting it yet.
 Claude found the cause each time, but only once I made it go and look.
