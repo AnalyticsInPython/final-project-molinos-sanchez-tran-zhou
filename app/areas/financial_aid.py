@@ -207,7 +207,7 @@ def load(conn: sqlite3.Connection, schools: list[School], year: int) -> dict:
         "rows": rows,
         "bands": BANDS,
         "headers": BAND_HEADERS,
-        "range_chart": _range_chart(rows),
+        "range_chart": _range_chart(rows, lead=_lead(rows)),
         "chart": _chart(rows),
         "notices": (
             coverage_notices(missing_all, missing_some, subject=SUBJECT)
@@ -252,10 +252,14 @@ def tailor(conn: sqlite3.Connection, schools: list[School], year: int, profile) 
         tailored |= {
             "own_band": band,
             "own_band_label": BANDS[band],
+            # What to call the reader in the card's headline. Only a name they
+            # chose to give: the username is a login, and "MIT pays maya-live
+            # $2,251" is not a sentence anyone wants read off a projector.
+            "own_name": profile.display_name,
             "band_sentence": _band_sentence(rows, band, year),
             # Redrawn rather than annotated: the dot has to sit at the band's
             # own position on the same axis as the bar it lands on.
-            "range_chart": _range_chart(rows, own=band),
+            "range_chart": _range_chart(rows, own=band, lead=_band_lead(rows, band)),
         }
     if home_state is not None:
         tailored |= {
@@ -266,18 +270,51 @@ def tailor(conn: sqlite3.Connection, schools: list[School], year: int, profile) 
     return tailored
 
 
+def _band_extremes(rows: list[dict], band: int) -> tuple[tuple, tuple] | None:
+    """The cheapest and dearest school at one income band, or None for fewer than two.
+
+    The headline, the tailored sentence and the mark on the chart all name
+    these two schools, so they are found once here rather than three times
+    from three slightly different filters.
+    """
+    priced = [(r["school"], r["bands"][band - 1]) for r in rows if r["bands"][band - 1] is not None]
+    if len(priced) < 2:
+        return None
+    return min(priced, key=lambda pair: pair[1]), max(priced, key=lambda pair: pair[1])
+
+
+def _band_lead(rows: list[dict], band: int) -> set[int]:
+    """The two schools the tailored headline names, for the chart to hold up."""
+    extremes = _band_extremes(rows, band)
+    return {school.unitid for school, _ in extremes} if extremes else set()
+
+
+def _lead(rows: list[dict]) -> set[int]:
+    """The school the untailored headline names — the widest price swing here."""
+    widest = _widest(rows)
+    return {widest["school"].unitid} if widest else set()
+
+
+def _widest(rows: list[dict]) -> dict | None:
+    """The row whose price depends most on income, or None for fewer than two."""
+    priced = [row for row in rows if row.get("spread") is not None]
+    if len(priced) < 2:
+        return None
+    return max(priced, key=lambda row: row["spread"])
+
+
 def _band_sentence(rows: list[dict], band: int, year: int) -> str | None:
     """The one sentence the reader came for: cheapest, dearest, and the gap.
 
     Computed rather than written, so it cannot drift from the table under it.
     A single school gets no sentence — a gap needs two.
     """
-    priced = [(r["school"], r["bands"][band - 1]) for r in rows if r["bands"][band - 1] is not None]
-    if len(priced) < 2:
+    extremes = _band_extremes(rows, band)
+    if not extremes:
         return None
 
-    low = min(priced, key=lambda pair: pair[1])
-    high = max(priced, key=lambda pair: pair[1])
+    low, high = extremes
+    priced = [r for r in rows if r["bands"][band - 1] is not None]
     return (
         f"At {BANDS[band]}, these {len(priced)} schools ran from {money(low[1])} at "
         f"{low[0].short} to {money(high[1])} at {high[0].short} in {year} — a gap of "
@@ -380,13 +417,22 @@ def _drift_notice(conn: sqlite3.Connection, year: int) -> Notice | None:
     )
 
 
-def _range_chart(rows: list[dict], own: int | None = None) -> dict | None:
+def _range_chart(
+    rows: list[dict], own: int | None = None, lead: set[int] | None = None
+) -> dict | None:
     """One row per school: lowest income band to highest, sorted by spread.
 
     `own` is the reader's income band when the card is tailored, drawn as a
     solid dot in the school's own colour where that band falls along the bar.
     Beside, never instead: the bar and both ends stay, because the reader's
     band is only meaningful against the range it sits in.
+
+    `lead` is the school or schools the card's headline names, marked so the
+    template can draw every other row faint — see the `.headline` note in
+    templates/base.html for why the sentence and the chart have to point at
+    the same school from across a lecture theatre. No lead marks every row
+    instead of none: a page with one school has no sentence naming anybody,
+    and drawing its only row faint would say the opposite.
 
     This is the primary chart. The finding is a per-item before/after — what
     the poorest family pays against what the richest one does — and a range
@@ -446,6 +492,7 @@ def _range_chart(rows: list[dict], own: int | None = None) -> dict | None:
                 "x_own": round(x(own_price), 1) if own_price is not None else None,
                 "spread": hi - lo,
                 "spread_x": round(x(hi) + 10, 1),
+                "lead": not lead or row["school"].unitid in lead,
             }
         )
 
@@ -638,19 +685,46 @@ def coverage(conn: sqlite3.Connection) -> set[tuple[int, int]]:
     return {(row[0], row[1]) for row in conn.execute(COVERAGE_QUERY)}
 
 
-def highlights(context: dict) -> list[str]:
-    """One line naming the school whose price depends most on income here.
+def headline(context: dict, cut: dict | None = None) -> str | None:
+    """The card's finding, in a sentence, from figures the card already shows.
 
-    Optional, like `trend` and `coverage` — the route collects these into a
-    page-top strip when there is more than one school to contrast. Computed
-    from `spread`, already the module's own finding, not a new metric picked
-    to sound interesting.
+    Tailored, it is the reader's own income band: what the cheapest school on
+    the page asks a family that earns that, what the dearest one asks, and the
+    distance between two schools at one income. Untailored it is the spread —
+    the metric this module exists to compute.
+
+    Computed rather than written, so it cannot drift from the table under it,
+    and None where a comparison would need a second school it does not have.
+    `cut` is unused here: this area's tailoring is its own axis rather than a
+    breakdown of a survey's rows (see `tailor`).
     """
-    rows = [row for row in context.get("rows", []) if row.get("spread") is not None]
-    if len(rows) < 2:
-        return []
-    widest = max(rows, key=lambda row: row["spread"])
-    return [
-        f"{widest['school'].short} has the widest price swing by income here — "
-        f"{money(widest['spread'])} between the lowest and highest income bands."
-    ]
+    rows = context.get("rows", [])
+    band = context.get("own_band")
+
+    if band:
+        extremes = _band_extremes(rows, band)
+        if not extremes:
+            return None
+        (cheapest, low), (dearest, high) = extremes
+        # A negative net price is grant aid exceeding the whole cost of
+        # attendance, and "pays her $2,251 to attend" is what that means.
+        # Saying "charges -$2,251" would bury the most striking fact here.
+        who = context.get("own_name") or "a family at that income"
+        asks = (
+            f"pays {who} {money(-low)} to attend" if low < 0 else f"charges {who} {money(low)}"
+        )
+        return (
+            f"At {BANDS[band]}, {cheapest.short} {asks} and {dearest.short} charges "
+            f"{money(high)}. Same income, {money(high - low)} apart."
+        )
+
+    widest = _widest(rows)
+    if widest is None:
+        return None
+    narrowest = min(
+        (row for row in rows if row.get("spread") is not None), key=lambda row: row["spread"]
+    )
+    return (
+        f"{widest['school'].short}'s price swings {money(widest['spread'])} by income, "
+        f"the widest here. {narrowest['school'].short}'s moves {money(narrowest['spread'])}."
+    )

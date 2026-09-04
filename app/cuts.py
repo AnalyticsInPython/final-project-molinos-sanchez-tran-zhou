@@ -34,7 +34,7 @@ Rules, each learned from a chart that would otherwise have shipped:
 from dataclasses import dataclass, field
 from urllib.parse import urlencode
 
-from app.format import percent
+from app.format import percent, spell
 from app.notices import Notice
 
 # Below this many students a rate moves by several points per person.
@@ -256,6 +256,43 @@ def context(
     }
 
 
+def furthest(rows: list[dict], emphasis: int | None) -> dict | None:
+    """The school whose figure for the reader's group sits furthest from its total.
+
+    The finding of a tailored cut, wherever the cut is drawn: the area's
+    headline names this school and `figure` draws its row at full strength
+    while the rest go faint, so the sentence and the chart cannot point at two
+    different schools. Distance is unsigned — the largest gap is the finding
+    whether the group is ahead of the school's own total or behind it — and
+    the caller reads the sign back off the row to say which.
+
+    None with nothing to compare: no emphasis (the reader asked for every
+    group rather than their own), or fewer than two schools drawing a rate.
+    """
+    if emphasis is None:
+        return None
+    drawn = [
+        row for row in rows if row["total"] is not None and row["rates"].get(emphasis) is not None
+    ]
+    if len(drawn) < 2:
+        return None
+    return max(drawn, key=lambda row: abs(row["rates"][emphasis] - row["total"]))
+
+
+def gap_words(diff: float) -> str:
+    """A distance between two rates as words — "ten points", "one point".
+
+    Points, not a ratio: these are percentages of different cohorts, and "10%
+    worse" invites reading a ten-point gap as a tenth. Rounded to the unit,
+    because the rates behind it are published to two decimal places and a
+    tenth of a point is below what the survey can carry.
+    """
+    points = round(abs(diff) * 100)
+    if points == 0:
+        return "less than a point"
+    return f"{spell(points)} point" + ("" if points == 1 else "s")
+
+
 def _triangle(cx: float, cy: float) -> str:
     """Another group: an upright triangle centred on (cx, cy), as polygon points.
 
@@ -298,6 +335,12 @@ def figure(cut: Cut, rows: list[dict], emphasis: int | None) -> dict | None:
     if not entries:
         return None
     labels = {**cut.groups, **cut.own_only}
+    # The row the card's headline names, kept at full strength while the rest
+    # are drawn faint by the template. Found here rather than passed in, so
+    # the chart cannot disagree with the sentence above it. Where there is no
+    # such row — the reader asked for every group rather than their own, so
+    # the sentence names nobody — every row is marked and nothing is dimmed.
+    lead = furthest(entries, emphasis)
 
     if emphasis is not None:
         entries.sort(
@@ -367,6 +410,7 @@ def figure(cut: Cut, rows: list[dict], emphasis: int | None) -> dict | None:
                 ],
                 "text": text,
                 "text_x": width - right + 12,
+                "lead": lead is None or row is lead,
             }
         )
 

@@ -41,7 +41,7 @@ import polars as pl
 
 from app import codes
 from app.db import series_ends, years_available
-from app.format import percent
+from app.format import percent, times
 from app.notices import coverage_notices, series_notices
 from app.schools import School
 from app.trend import chart as line_chart
@@ -155,7 +155,7 @@ def load(conn: sqlite3.Connection, schools: list[School], year: int) -> dict:
 
     return {
         "rows": rows,
-        "chart": _composition_chart(rows),
+        "chart": _composition_chart(rows, lead=_lead(rows)),
         "legend": [{"label": label, "color": RACE_COLOR[code]} for code, label in RACE.items()],
         "notices": coverage_notices(missing_all, missing_some, subject=SUBJECT, series=False),
     }
@@ -170,13 +170,26 @@ def _empty(schools: list[School]) -> dict:
     }
 
 
-def _composition_chart(rows: list[dict]) -> dict | None:
+def _lead(rows: list[dict]) -> set[int]:
+    """The school the headline names: the largest international share here."""
+    reported = [row for row in rows if row["international_pct"] is not None]
+    if len(reported) < 2:
+        return set()
+    return {max(reported, key=lambda row: row["international_pct"])["school"].unitid}
+
+
+def _composition_chart(rows: list[dict], lead: set[int] | None = None) -> dict | None:
     """One horizontal bar per school, length proportional to enrollment,
     segmented proportional to that school's own race/ethnicity composition.
 
     See the module docstring for why length carries size rather than every
     bar running the same width — the sevenfold gap between the smallest and
     largest school here is as much a finding as the composition is.
+
+    `lead` is the school the card's headline names, marked so the template can
+    draw the other bars faint — see the `.headline` note in base.html. No lead
+    marks every bar instead of none: a page with one school has no sentence
+    naming anybody, and drawing its only bar faint would say the opposite.
     """
     entries = [row for row in rows if row["total"]]
     if not entries:
@@ -220,6 +233,7 @@ def _composition_chart(rows: list[dict]) -> dict | None:
                 "segments": segments,
                 "total": row["total"],
                 "total_x": round(label_w + bar_w + 8, 1),
+                "lead": not lead or row["school"].unitid in lead,
             }
         )
 
@@ -302,17 +316,29 @@ def coverage(conn: sqlite3.Connection) -> set[tuple[int, int]]:
     return {(row[0], row[1]) for row in conn.execute(COVERAGE_QUERY)}
 
 
-def highlights(context: dict) -> list[str]:
-    """One line naming the school with the largest international share here.
+def headline(context: dict, cut: dict | None = None) -> str | None:
+    """The card's finding, in a sentence: where the student body comes from.
 
-    Optional, like `trend`/`coverage` elsewhere — see financial_aid.highlights
-    for the shared convention.
+    International share rather than any race or ethnicity share: it is the one
+    figure here that is a fact about the school's reach rather than about the
+    composition of the country it recruits from, and comparing schools on the
+    latter invites a reading this data does not support.
+
+    `cut` is unused — the composition is already the whole card.
     """
-    rows = [row for row in context.get("rows", []) if row.get("international_pct") is not None]
-    if len(rows) < 2:
-        return []
-    most_intl = max(rows, key=lambda row: row["international_pct"])
-    return [
-        f"{most_intl['school'].short} has the most international students here — "
-        f"{percent(most_intl['international_pct'])} of undergrads."
-    ]
+    reported = [row for row in context.get("rows", []) if row["international_pct"] is not None]
+    if len(reported) < 2:
+        return None
+
+    most = max(reported, key=lambda row: row["international_pct"])
+    least = min(reported, key=lambda row: row["international_pct"])
+    multiple = times(most["international_pct"], least["international_pct"])
+    against = (
+        f"{multiple} {least['school'].short}'s {percent(least['international_pct'])}"
+        if multiple
+        else f"against {percent(least['international_pct'])} at {least['school'].short}"
+    )
+    return (
+        f"{most['school'].short} is the most international here: "
+        f"{percent(most['international_pct'])} of undergraduates, {against}."
+    )

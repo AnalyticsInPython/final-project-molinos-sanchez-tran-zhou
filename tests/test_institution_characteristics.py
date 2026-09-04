@@ -282,18 +282,18 @@ def test_a_covered_year_actually_renders(conn):
         assert context["rows"], f"claims {unitid} in {yr} and draws nothing"
 
 
-def test_highlights_names_the_narrowest_ratio(conn, year):
+def test_headline_names_the_narrowest_ratio(conn, year):
     """Caltech and MIT are tied at 3:1 — the narrowest in this sample."""
     context = institution_characteristics.load(conn, all_schools(conn), year)
-    lines = institution_characteristics.highlights(context)
-    assert lines
-    assert "Caltech" in lines[0] or "MIT" in lines[0]
+    line = institution_characteristics.headline(context)
+    assert line
+    assert "Caltech" in line or "MIT" in line
 
 
-def test_highlights_is_empty_for_a_single_school(conn, year):
+def test_headline_is_none_for_a_single_school(conn, year):
     schools = [s for s in all_schools(conn) if s.unitid == CALTECH]
     context = institution_characteristics.load(conn, schools, year)
-    assert institution_characteristics.highlights(context) == []
+    assert institution_characteristics.headline(context) is None
 
 
 def test_founded_year_matches_the_school_charter(conn, year):

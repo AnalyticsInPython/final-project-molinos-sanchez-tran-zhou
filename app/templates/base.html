@@ -94,6 +94,18 @@
     .you-pill { font-size: .75rem; font-weight: 600; padding: .15rem .5rem; border-radius: 999px; background: #e8f3ec; color: #1c5f39; border: 1px solid #a8ceb8; }
     .cut th.you, .cut td.you { color: var(--accent); font-weight: 700; }
     .question { color: var(--ink-soft); margin: 0 0 1.25rem; }
+    /* The card's finding, in a sentence, above everything else on the card.
+       Large and in full-strength ink because it is read off a projector at
+       the back of a room, where a 640-wide chart is a shape and its axis
+       labels are gone: whatever else the card carries, the reader should
+       leave with this line. Sits between the question and the notices, so it
+       is the first thing the eye lands on after the title, and the caveats
+       still come before the charts they qualify.
+
+       The chart under it draws the school this sentence names at full
+       strength and everything else faint (each area's `lead`), so the
+       sentence and the picture point at the same place. */
+    .headline { font-size: 1.3rem; font-weight: 600; line-height: 1.4; color: var(--ink); margin: 0 0 1.25rem; }
     /* Data-quality notices. Stated above the charts, because a caveat read
        after the conclusion has already been drawn is not a caveat. */
     .notices { list-style: none; margin: 0 0 1.25rem; padding: 0; display: flex; flex-direction: column; gap: .5rem; }
