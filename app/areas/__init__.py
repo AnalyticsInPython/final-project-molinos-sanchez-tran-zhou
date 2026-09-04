@@ -18,8 +18,21 @@ An area module is expected to define:
     SOURCE    str   agency/API the year label is credited to, e.g. "IPEDS"
     TEMPLATE  str   path under app/templates/
     load(conn, schools, year) -> dict    the template's context
+    headline(context, cut=None) -> str | None   the card's finding, in a sentence
     trend(conn, schools, years) -> dict   optional: the multi-year view
     coverage(conn) -> set[(unitid, year)]  optional: what the picker may offer
+
+`headline` is what the card opens with, in large type above everything else,
+because a chart across a lecture theatre is a shape and not a finding. It
+reads only what `load` already computed — no second query, and no metric that
+is not already on the card — names the extreme school and the distance to
+another one, and returns None where fewer than two schools carry the figure.
+Where the card is tailored it is handed the cut context (app/cuts.py) and
+names the reader's own group; it describes the school, never the student.
+
+The school it names must be the school the chart draws at full strength: each
+area finds that school once, in a private helper both the sentence and the
+chart's `lead` flag read, so the two cannot drift apart.
 
 `coverage` is what the year picker greys out against, so it must answer
 "could this area draw this school in this year?" rather than "does a row

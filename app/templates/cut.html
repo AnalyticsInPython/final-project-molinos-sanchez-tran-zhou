@@ -34,30 +34,38 @@
               font-size="11" fill="#7b857e">{{ tick.label }}</text>
       {% endfor %}
       {% for bar in f.bars %}
-        <text x="{{ f.label_x }}" y="{{ bar.text_y }}" text-anchor="end"
-              font-size="12" fill="#17211d">{{ bar.name }}</text>
-        {# Three roles, three shapes — see cuts.figure. Drawn lightest first so
-           the reader's own group is never hidden under another mark. #}
-        {% for dot in bar.dots if not dot.own %}
-          <polygon points="{{ dot.points }}" fill="#a8791f" opacity=".8"
-                   stroke="#fff" stroke-width=".6">
-            <title>{{ bar.name }} — {{ dot.label }}</title>
-          </polygon>
-        {% endfor %}
-        <rect x="{{ bar.everyone.x }}" y="{{ bar.everyone.y }}"
-              width="{{ bar.everyone.side }}" height="{{ bar.everyone.side }}"
-              fill="none" stroke="#17211d" stroke-width="1.8">
-          <title>{{ bar.name }} — everyone: {{ bar.total }}</title>
-        </rect>
-        {% for dot in bar.dots if dot.own %}
-          <circle cx="{{ dot.x }}" cy="{{ bar.y }}" r="6.5" fill="{{ bar.color }}"
-                  stroke="#fff" stroke-width="2">
-            <title>{{ bar.name }} — {{ dot.label }}</title>
-          </circle>
-        {% endfor %}
-        <text x="{{ bar.text_x }}" y="{{ bar.text_y }}" font-size="11" fill="#4f5a54">
-          {{ bar.text }}
-        </text>
+        {# Tailored, the school whose gap the headline names stays at full
+           strength and the rest go faint — the same device every area's own
+           chart uses, see the `.headline` note in base.html. Asked for rather
+           than tailored, there is no named school, every row is marked and
+           nothing is dimmed. #}
+        <g{% if not bar.lead %} opacity=".32"{% endif %}>
+          <text x="{{ f.label_x }}" y="{{ bar.text_y }}" text-anchor="end"
+                font-size="12" fill="#17211d"
+                {% if c.emphasis is not none and bar.lead %}font-weight="700"{% endif %}>{{ bar.name }}</text>
+          {# Three roles, three shapes — see cuts.figure. Drawn lightest first so
+             the reader's own group is never hidden under another mark. #}
+          {% for dot in bar.dots if not dot.own %}
+            <polygon points="{{ dot.points }}" fill="#a8791f" opacity=".8"
+                     stroke="#fff" stroke-width=".6">
+              <title>{{ bar.name }} — {{ dot.label }}</title>
+            </polygon>
+          {% endfor %}
+          <rect x="{{ bar.everyone.x }}" y="{{ bar.everyone.y }}"
+                width="{{ bar.everyone.side }}" height="{{ bar.everyone.side }}"
+                fill="none" stroke="#17211d" stroke-width="1.8">
+            <title>{{ bar.name }} — everyone: {{ bar.total }}</title>
+          </rect>
+          {% for dot in bar.dots if dot.own %}
+            <circle cx="{{ dot.x }}" cy="{{ bar.y }}" r="6.5" fill="{{ bar.color }}"
+                    stroke="#fff" stroke-width="2">
+              <title>{{ bar.name }} — {{ dot.label }}</title>
+            </circle>
+          {% endfor %}
+          <text x="{{ bar.text_x }}" y="{{ bar.text_y }}" font-size="11" fill="#4f5a54">
+            {{ bar.text }}
+          </text>
+        </g>
       {% endfor %}
     </svg>
     {# The key draws the chart's own three marks at the chart's own proportions,

@@ -19,15 +19,20 @@
         </text>
       {% endfor %}
       {% for bar in c.bars %}
-        <text x="{{ c.label_x }}" y="{{ bar.text_y }}" text-anchor="end"
-              font-size="12" fill="#17211d">{{ bar.name }}</text>
-        {% for cell in bar.cells %}
-          <rect x="{{ cell.x }}" y="{{ bar.y - 7 }}" width="{{ cell.width }}" height="14"
-                rx="2" fill="{{ '#2a6fb0' if loop.first else '#e07b39' }}"></rect>
-          <text x="{{ cell.label_x }}" y="{{ bar.text_y }}" font-size="11" fill="#4f5a54">
-            {{ cell.value | percent }}
-          </text>
-        {% endfor %}
+        {# Faint for every school but the one the headline names — see the
+           `.headline` note in base.html. #}
+        <g{% if not bar.lead %} opacity=".32"{% endif %}>
+          <text x="{{ c.label_x }}" y="{{ bar.text_y }}" text-anchor="end"
+                font-size="12" fill="#17211d"
+                {% if bar.lead %}font-weight="700"{% endif %}>{{ bar.name }}</text>
+          {% for cell in bar.cells %}
+            <rect x="{{ cell.x }}" y="{{ bar.y - 7 }}" width="{{ cell.width }}" height="14"
+                  rx="2" fill="{{ '#2a6fb0' if loop.first else '#e07b39' }}"></rect>
+            <text x="{{ cell.label_x }}" y="{{ bar.text_y }}" font-size="11" fill="#4f5a54">
+              {{ cell.value | percent }}
+            </text>
+          {% endfor %}
+        </g>
       {% endfor %}
     </svg>
     <p class="keys">

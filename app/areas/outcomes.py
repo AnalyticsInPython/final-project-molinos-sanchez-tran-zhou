@@ -151,13 +151,26 @@ def load(conn: sqlite3.Connection, schools: list[School], year: int) -> dict:
 
     return {
         "rows": rows,
-        "chart": _chart(rows),
+        "chart": _chart(rows, lead=_lead(rows)),
         "notices": coverage_notices(missing_all, missing_some, subject=SUBJECT),
     }
 
 
-def _chart(rows: list[dict]) -> dict | None:
+def _lead(rows: list[dict]) -> set[int]:
+    """The school the headline names: the highest earnings six years after entry."""
+    earners = [row for row in rows if row["earnings_6yr"] is not None]
+    if len(earners) < 2:
+        return set()
+    return {max(earners, key=lambda row: row["earnings_6yr"])["school"].unitid}
+
+
+def _chart(rows: list[dict], lead: set[int] | None = None) -> dict | None:
     """One row per school: 6-year earnings to 10-year earnings, sorted by growth.
+
+    `lead` is the school the card's headline names, marked so the template can
+    draw the other rows faint — see the `.headline` note in base.html. No lead
+    marks every bar instead of none: a page with one school has no sentence
+    naming anybody, and drawing its only row faint would say the opposite.
 
     Same range-plot shape as financial_aid's primary chart — a per-school
     before/after — because the question is the same shape: how far does this
@@ -174,6 +187,12 @@ def _chart(rows: list[dict]) -> dict | None:
         return None
 
     pairs.sort(key=lambda p: p[2] - p[1], reverse=True)
+
+    # Only a school this chart actually draws can be marked on it. The
+    # sentence is about six-year earnings, which a school can report without
+    # the ten-year figure this chart also needs, and a chart with every row
+    # faint and none at full strength says nothing at all.
+    lead = (lead or set()) & {row["school"].unitid for row, _, _ in pairs}
 
     width, row_h = 640, 34
     left, right, top = 132, 64, 26
@@ -202,6 +221,7 @@ def _chart(rows: list[dict]) -> dict | None:
                 "high": hi,
                 "growth": hi - lo,
                 "growth_x": round(x(hi) + 10, 1),
+                "lead": not lead or row["school"].unitid in lead,
             }
         )
 
@@ -234,3 +254,29 @@ COVERAGE_QUERY = """
 def coverage(conn: sqlite3.Connection) -> set[tuple[int, int]]:
     """Every (unitid, year) this area can render, for the year picker."""
     return {(row[0], 2021) for row in conn.execute(COVERAGE_QUERY)}
+
+
+def headline(context: dict, cut: dict | None = None) -> str | None:
+    """The card's finding, in a sentence: the earnings spread, and who owes what.
+
+    Six-year earnings rather than ten-year: it is the figure the debt ratio is
+    computed against, and the one a family is asking about. The debt clause is
+    added only where both schools reported a median, since a missing one means
+    too few borrowers to publish rather than a school whose graduates owe
+    nothing — see the module docstring.
+
+    Scorecard carries no breakdowns here, so `cut` is always None.
+    """
+    earners = [row for row in context.get("rows", []) if row["earnings_6yr"] is not None]
+    if len(earners) < 2:
+        return None
+
+    top = max(earners, key=lambda row: row["earnings_6yr"])
+    bottom = min(earners, key=lambda row: row["earnings_6yr"])
+    debts = (top["median_debt"], bottom["median_debt"])
+    owing = ", with less debt" if all(d is not None for d in debts) and debts[0] < debts[1] else ""
+    return (
+        f"{top['school'].short} graduates earn {money(top['earnings_6yr'])} six years after "
+        f"entry, {money(top['earnings_6yr'] - bottom['earnings_6yr'])} more than "
+        f"{bottom['school'].short}'s{owing}."
+    )

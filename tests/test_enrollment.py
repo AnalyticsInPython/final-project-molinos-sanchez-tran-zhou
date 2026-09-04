@@ -127,15 +127,14 @@ def test_trend_has_a_panel_for_international_and_women(conn):
     assert "Women's share of enrollment" in titles
 
 
-def test_highlights_names_the_highest_international_share(conn, year):
+def test_headline_names_the_highest_international_share(conn, year):
     """UChicago has the highest international undergrad share in this sample."""
-    context = enrollment.load(conn, all_schools(conn), year)
-    lines = enrollment.highlights(context)
-    assert lines
-    assert "Chicago" in lines[0]
+    line = enrollment.headline(enrollment.load(conn, all_schools(conn), year))
+    assert line
+    assert "Chicago" in line
 
 
-def test_highlights_is_empty_for_a_single_school(conn, year):
+def test_headline_is_none_for_a_single_school(conn, year):
     schools = [s for s in all_schools(conn) if s.unitid == CALTECH]
     context = enrollment.load(conn, schools, year)
-    assert enrollment.highlights(context) == []
+    assert enrollment.headline(context) is None

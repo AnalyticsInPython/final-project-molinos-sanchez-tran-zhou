@@ -28,7 +28,7 @@ import polars as pl
 
 from app import codes, cuts
 from app.db import series_ends, years_available
-from app.format import number, percent
+from app.format import number, percent, spell, times
 from app.notices import coverage_notices, series_notices
 from app.schools import School
 from app.trend import chart as line_chart
@@ -105,6 +105,11 @@ CUTS = {
     ),
 }
 
+# The cut's labels are the questionnaire's answers and read as adjectives —
+# see the note on codes.SEX. A headline counts applicants rather than labelling
+# an answer, so it needs the plural nouns the head-counting areas already use.
+GROUP_NOUNS = {1: "Men", 2: "Women"}
+
 
 def load(conn: sqlite3.Connection, schools: list[School], year: int) -> dict:
     """Applications, admits and enrolments per school, plus the two rates."""
@@ -164,7 +169,7 @@ def load(conn: sqlite3.Connection, schools: list[School], year: int) -> dict:
 
     return {
         "rows": rows,
-        "rates_chart": _rates_chart(rows),
+        "rates_chart": _rates_chart(rows, lead=_lead(rows)),
         "volume_chart": _volume_chart(rows),
         "notices": coverage_notices(missing_all, missing_some, subject=SUBJECT, series=True),
     }
@@ -216,8 +221,26 @@ def _empty(schools: list[School]) -> dict:
     }
 
 
-def _rates_chart(rows: list[dict]) -> dict | None:
+def _rated(rows: list[dict]) -> list[dict]:
+    """The rows carrying both rates — the only ones any of this can speak for."""
+    return [row for row in rows if row["admit_rate"] is not None and row["yield_rate"] is not None]
+
+
+def _lead(rows: list[dict]) -> set[int]:
+    """The school the headline names: the hardest one here to get into."""
+    rated = _rated(rows)
+    if len(rated) < 2:
+        return set()
+    return {min(rated, key=lambda row: row["admit_rate"])["school"].unitid}
+
+
+def _rates_chart(rows: list[dict], lead: set[int] | None = None) -> dict | None:
     """Admit rate and yield side by side, rows sorted by admit rate.
+
+    `lead` is the school the card's headline names, marked so the template can
+    draw the other rows faint — see the `.headline` note in base.html. No lead
+    marks every bar instead of none: a page with one school has no sentence
+    naming anybody, and drawing its only row faint would say the opposite.
 
     Two panels rather than one shared axis. On a common 0-100% scale the admit
     bars collapse into a stub — these schools admit between 4% and 20% — and
@@ -229,9 +252,7 @@ def _rates_chart(rows: list[dict]) -> dict | None:
     column descends cleanly and the yield column beside it does not. That
     jaggedness is the finding: the two rates do not track each other.
     """
-    entries = [
-        row for row in rows if row["admit_rate"] is not None and row["yield_rate"] is not None
-    ]
+    entries = _rated(rows)
     if not entries:
         return None
 
@@ -257,6 +278,7 @@ def _rates_chart(rows: list[dict]) -> dict | None:
             "name": row["school"].short,
             "y": round(y, 1),
             "text_y": round(y + 4, 1),
+            "lead": not lead or row["school"].unitid in lead,
             "cells": [],
         }
         for panel in panels:
@@ -420,21 +442,68 @@ def coverage(conn: sqlite3.Connection) -> set[tuple[int, int]]:
     return {(row[0], row[1]) for row in conn.execute(COVERAGE_QUERY)}
 
 
-def highlights(context: dict) -> list[str]:
-    """One line naming the hardest school to get into here.
+def headline(context: dict, cut: dict | None = None) -> str | None:
+    """The card's finding, in a sentence: the two rates, and that they diverge.
 
-    Optional, like `trend` and `coverage` — see financial_aid.highlights for
-    the shared convention.
+    Untailored it is the module's own argument — the hardest school here to
+    get into against the easiest, and what share of admitted students each one
+    keeps, which is where "selective" and "wanted" come apart.
+
+    Tailored it is the reader's own group beside the published total, naming
+    the school where the two are furthest apart. It describes the school's
+    admit rate for a group of applicants, never anyone's chances: rule 6 in
+    app/cuts.py.
     """
-    rows = [
-        row
-        for row in context.get("rows", [])
-        if row.get("admit_rate") is not None and row.get("yield_rate") is not None
-    ]
-    if len(rows) < 2:
-        return []
-    hardest = min(rows, key=lambda row: row["admit_rate"])
-    return [
-        f"{hardest['school'].short} is the hardest to get into here — "
-        f"{percent(hardest['admit_rate'])} of applicants admitted."
-    ]
+    if cut and cut.get("emphasis") is not None:
+        return _cut_headline(cut)
+
+    rated = _rated(context.get("rows", []))
+    if len(rated) < 2:
+        return None
+
+    hardest = min(rated, key=lambda row: row["admit_rate"])
+    easiest = max(rated, key=lambda row: row["admit_rate"])
+    multiple = times(easiest["admit_rate"], hardest["admit_rate"])
+    admits = (
+        f"admits {multiple} as many" if multiple else f"admits {percent(easiest['admit_rate'])}"
+    )
+    # "Fewer than half" rather than the figure: the point of the second
+    # sentence is that the easier school is also the less wanted one, and a
+    # fraction of a whole says that faster than a second percentage does.
+    keeps = (
+        "keeps fewer than half"
+        if easiest["yield_rate"] < 0.5
+        else f"keeps {percent(easiest['yield_rate'], 0)}"
+    )
+    return (
+        f"{hardest['school'].short} admits {percent(hardest['admit_rate'])} and "
+        f"{percent(hardest['yield_rate'], 0)} of them come. "
+        f"{easiest['school'].short} {admits} and {keeps}."
+    )
+
+
+def _cut_headline(cut: dict) -> str | None:
+    """Admit rates for the reader's group against each school's own total."""
+    own = cut["emphasis"]
+    lead = cuts.furthest(cut["rows"], own)
+    if lead is None:
+        return None
+
+    drawn = [row for row in cut["rows"] if row["rates"].get(own) is not None and row["total"]]
+    above = [row for row in drawn if row["rates"][own] > row["total"]]
+    group = GROUP_NOUNS.get(own, cut["own_label"])
+    places = cut["cut"].places
+    distance = cuts.gap_words(lead["rates"][own] - lead["total"])
+    figures = f"{percent(lead['rates'][own], places)} against {percent(lead['total'], places)}"
+
+    if len(above) == len(drawn) or not above:
+        side = "above" if above else "below"
+        return (
+            f"{group} are admitted {side} the overall rate at all {spell(len(drawn))} schools "
+            f"here, by {distance} at {lead['school'].short}: {figures}."
+        )
+    return (
+        f"{group} are admitted above the overall rate at {spell(len(above))} of these "
+        f"{spell(len(drawn))} schools. The gap is widest at {lead['school'].short}: {figures}, "
+        f"{distance} {'above' if lead['rates'][own] > lead['total'] else 'below'}."
+    )

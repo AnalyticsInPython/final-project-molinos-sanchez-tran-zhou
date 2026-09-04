@@ -72,11 +72,19 @@
       {% if section.year_meaning %}
         <p class="year-meaning">{{ section.year_meaning }}</p>
       {% endif %}
+      {# The card's finding, computed by the area from the figures below it
+         (see any area's `headline`). First thing after the title and the
+         year, and deliberately above the notices: a reader who takes nothing
+         else off this card should take this sentence. #}
+      {% if section.headline %}
+        <p class="headline">{{ section.headline }}</p>
+      {% endif %}
       {% if highlights and section.area.KEY == "institution_characteristics" %}
         {# Lives here, not as a page-top banner: institution characteristics
-           is this page's "who is this school, at a glance" area, and each
-           line is computed from another area's own already-shown figures
-           (see e.g. financial_aid.highlights) rather than a new claim. #}
+           is this page's "who is this school, at a glance" area, and every
+           line is another card's own opening sentence (see any area's
+           `headline`) rather than a new claim. This card's own line is above
+           the strip, not in it. #}
         <ul class="highlights">
           {% for line in highlights %}
             <li><span class="highlight-mark" aria-hidden="true">&#10024;</span> {{ line }}</li>

@@ -193,6 +193,7 @@ def compare(
             trending = bool(shown) and hasattr(module, "trend")
             tailoring = module.KEY in tailored
             cut_context = None
+            headline = None
 
             if trending:
                 context = module.trend(conn, chosen, shown)
@@ -230,12 +231,20 @@ def compare(
                     # yet" would describe a year that does not exist.
                     single_release=len(available) == 1,
                 )
-                # Only a snapshot, and only with something to contrast: a
-                # trend already tells its own story in the lines, and a
-                # highlight naming "the widest gap" needs more than one
-                # school to be a gap at all.
-                if len(chosen) > 1 and hasattr(module, "highlights"):
-                    highlights.extend(module.highlights(context))
+                # The sentence the card leads with, computed from what this
+                # area has just worked out and handed the cut context so a
+                # tailored card names the reader's own group. Only a
+                # snapshot: a trend tells its story in the lines, and the
+                # areas return None themselves where one school leaves
+                # nothing to compare against.
+                headline = module.headline(context, cut_context)
+                # The strip on the characteristics card is the page's summary
+                # — every card's own opening sentence, gathered where a reader
+                # who scrolled past them can still see the lot. That card's
+                # own line is left out: it is the sentence directly above the
+                # strip, and printing it twice on one card reads as a bug.
+                if headline and module.KEY != "institution_characteristics":
+                    highlights.append(headline)
 
             sections.append(
                 {
@@ -243,6 +252,7 @@ def compare(
                     "year": showing,
                     "mode": "trend" if trending else "snapshot",
                     "context": context,
+                    "headline": headline,
                     "notices": notices,
                     # Almost always IPEDS; outcomes.py is the one area whose
                     # TABLE comes from a different agency's API entirely, and
