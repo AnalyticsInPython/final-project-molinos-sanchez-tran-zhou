@@ -37,7 +37,7 @@ Nine minutes, four voices. Each person presents the part they can be asked about
 | 4:15–5:15 | Selectiveness | **Tailor**: admit rate for women beside everyone, five schools, all above the total. Why "everyone" is the published total and never the sum — IPEDS added sex codes in 2022. | 3 |
 | 5:15–6:15 | Retention and graduation | **Tailor**: Hispanic completion beside that survey's own total. Carnegie Mellon −10, Berkeley −7, MIT and Stanford within a point. The under-30 rule, and the rule that we describe the school, never the student's odds. | 3 |
 | 6:15–7:00 | After graduation, athletics, characteristics | Scroll, do not dwell: earnings and debt, the $0 that is real, the map and the highlights strip. | 4 |
-| 7:00–8:00 | "How we built it" card | Four people, one agent each, one branch each, PRs reviewed by a human. 284 tests, ruff. The three traps the agent walked into that we caught: the API paginates at 10,000 and looks like it does not; a negative net price is real and the sentinels are −1/−2/−3; a race chart drawn against a total from a different survey. | 4 |
+| 7:00–8:00 | "How we built it" card | Four people, one agent each, one branch each, PRs reviewed by a human. 388 tests, ruff. The three traps the agent walked into that we caught: the API paginates at 10,000 and looks like it does not; a negative net price is real and the sentinels are −1/−2/−3; a race chart drawn against a total from a different survey. | 4 |
 | 8:00–8:45 | Same card | What we proposed and changed: peer-group outcomes need a stratified sample, and 25 selective schools have no spread, so we pivoted to cuts — the same idea, the reader's own group instead of a synthetic peer. What is next. Questions. | 1 |
 
 A rehearsal tonight decides whether the trend flip at 3:45 stays. If the demo runs
@@ -79,11 +79,16 @@ Maya's race, sex, income band and state are **not** in that URL and never are �
 says `tailor=<area>` and the server reads the profile. A shared link tailors to
 whoever opens it. That is the answer to the question in the table at the bottom.
 
-`tailor=selectiveness` and `tailor=retention` draw their cuts today. `tailor=financial_aid`
-is written for the aid-tailoring branch (item 1 under *What is missing* in ROADMAP.md)
-and does nothing until that merges — until then the financial aid card renders no
-*Tailor data for me* button, and the extra parameter is ignored rather than an error.
-Re-check this line after the merge.
+All three do something. `tailor=selectiveness` and `tailor=retention` draw their cuts.
+`tailor=financial_aid` — the aid-tailoring branch, merged — changes the card in three
+ways at once, which is why it is the one the script dwells on: Maya's income band is lit
+in the table and drawn as a solid dot where it falls on each school's bar; two pills read
+*Tailored to you: $30,001–48,000* and *Tailored to you: CA*; and a third figure appears,
+*The published price that applies to you*, giving the 2023 tuition and fees her residency
+qualifies her for at each school — Berkeley in-state, Michigan out-of-state — beside the
+2021 net price. The two are never subtracted from one another: different survey,
+different year, before aid against after it. Every band stays on the page, because the
+finding is still the range.
 
 **Trend** — financial aid alone, 2015 to 2021, the flip at 3:45. One area, seven
 years, so the chart is a line rather than a snapshot:
@@ -96,14 +101,17 @@ If the demo runs long this is the first thing cut, per the rehearsal note above.
 
 ## Demo day — Friday morning
 
-- [ ] `git pull`; `uv sync`; `uv run pytest` — 284 or more, all green.
+- [ ] `git pull`; `uv sync`; `uv run pytest` — 388 or more, all green. Two branches
+      are still open; if either has merged, put the count this run prints into the
+      7:00 line, which is where it gets said out loud.
 - [ ] `.env` present with the MapTiler key; `ls data/*.db` shows all three databases.
 - [ ] `uv run python scripts/seed_demo.py`; open `/profile`, log in as `maya`, see five schools.
 - [ ] Log out. The demo starts signed out.
 - [ ] `uv run uvicorn app.main:app --port 8001` in a terminal that stays visible in the dock, not in an IDE pane.
 - [ ] Browser: one window, one tab, 125% zoom, bookmarks bar hidden, notifications off, other apps closed. Window at the projector's resolution, not the laptop's.
 - [ ] Open `DEMO.md` on a phone or second screen for the URLs and the numbers.
-- [ ] `docs/demo/` screenshots opened in a second tab, in case.
+- [ ] `docs/demo/` screenshots opened in a second tab, in case — the folder is
+      filled at the rehearsal, from the list in `docs/demo/README.md`.
 - [ ] Every presenter has the three "how does this work" answers for their two minutes.
 
 ## Fallbacks
@@ -111,7 +119,9 @@ If the demo runs long this is the first thing cut, per the rehearsal note above.
 - **Typo or hesitation in the live sign-up:** finish it anyway; if it fails, log in as
   `maya` and say why she exists.
 - **Server dies:** the terminal is visible; restart is one command, ten seconds.
-- **Laptop dies:** the screenshots in `docs/demo/` on a second machine, narrated.
+- **Laptop dies:** the screenshots in `docs/demo/` on a second machine, narrated —
+  which works only if the rehearsal filled that folder. `docs/demo/README.md` lists
+  what to capture; nothing else in the demo depends on it.
 - **Running long at 6:15:** skip the scroll through the last three areas and go to
   the build card. At 7:30, skip the "what we changed" beat and take questions.
 - **The map does not load:** say "needs a key" and keep going; the highlights strip is
@@ -126,7 +136,7 @@ The grader will ask one. Each presenter owns the ones in their segment.
 | Why is net price 2021 when it is 2026? | IPEDS publishes nothing newer; the ingest asked for 2022–24 and recorded the empty answers, which is how the app tells "nothing newer" from "not loaded". Published costs rose 8% to 2023; we say so and do not extrapolate. | `scripts/import_ipeds.py`, `app/db.py::series_ends`, `app/notices.py` |
 | Why is a negative net price shown? Is that a bug? | Grant aid exceeded the cost of attendance at MIT and Stanford at that band. Sentinels are exactly −1, −2, −3; we drop those and only those. | `app/areas/financial_aid.py::SENTINELS`, PROPOSAL limitations |
 | Why does "everyone" not equal men plus women? | IPEDS added sex codes in 2022 and 2023; we pin the published total and never sum parts. | `app/areas/selectiveness.py`, the cut's note |
-| Why does the race cut's "everyone" differ from the six-year rate in the table? | Different survey, different cohort definition; drawing one against the other was the bug we caught on Wednesday. Rule 1 under *Cuts*. | `app/cuts.py` docstring, `app/areas/retention.py::cut` |
+| Why does the race cut's "everyone" differ from the six-year rate in the table? | Two six-year figures for one school, on one card: the cut says Berkeley graduates **94%** and the table under it says **92%**. Different surveys — the cut is the Graduation Rates component, the table is Outcome Measures, and their cohorts are defined differently. A group is only ever drawn beside its own survey's total; drawing one against the other was the bug we caught on Wednesday. Rule 1 under *Cuts*. **Presenter 3 says this at 5:15 without being asked** — it is the one number on screen that looks like a contradiction. | `app/cuts.py` docstring, `app/areas/retention.py::cut`, ROADMAP *Cuts*, rule 1 |
 | Why suppress under 30? | One person moves the rate several points. IPEDS publishes anyway; we do not, and we name the school it happened at. | `app/cuts.py::MIN_COHORT` |
 | Where does Maya's race go in the URL? | Nowhere. The URL says `tailor=retention`; the server reads the profile. A shared link tailors to whoever opens it. | `tests/test_cuts.py::test_tailoring_reads_the_profile_and_never_the_url` |
 | Where is the Polars? | Every area reads one SQL query into a Polars frame and computes its metric there — spread, yield, took-longer, attrition, debt-to-earnings, athlete share. | `app/areas/*.py` |

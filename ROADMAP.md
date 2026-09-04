@@ -47,7 +47,7 @@ number she will see, and so that no cut she triggers is suppressed at any of her
 | Family income | **Band 2, $30,001–48,000** | The band where the five schools disagree by $17,390 |
 | SAT / GPA | 1480 / 3.8 | GPA is saved and compared to nothing, and the form says so — an honesty moment worth thirty seconds |
 | Race | **Hispanic or Latino** | ≥ 30 in the cohort at all five schools, so no cell is suppressed |
-| Gender | **Woman** | Every school reports admits by sex |
+| Sex | **Female** | Every school reports admits by sex. The form asks *Sex* and offers *Female*, matching the IPEDS codes it saves (`app/codes.py::SEX`); the stored column is still called `gender`, which is a rename a migration would cost more than it is worth |
 
 **The five schools.** All 25 schools in the sample are complete on every table (checked
 3 Sep: six net-price bands, admissions by sex, race-by-sex graduation rows, outcome
@@ -98,7 +98,7 @@ Nine minutes, four voices. Each person presents the part they can be asked about
 | 4:15–5:15 | Selectiveness | **Tailor**: admit rate for women beside everyone, five schools, all above the total. Why "everyone" is the published total and never the sum — IPEDS added sex codes in 2022. | 3 |
 | 5:15–6:15 | Retention and graduation | **Tailor**: Hispanic completion beside that survey's own total. Carnegie Mellon −10, Berkeley −7, MIT and Stanford within a point. The under-30 rule, and the rule that we describe the school, never the student's odds. | 3 |
 | 6:15–7:00 | After graduation, athletics, characteristics | Scroll, do not dwell: earnings and debt, the $0 that is real, the map and the highlights strip. | 4 |
-| 7:00–8:00 | "How we built it" card | Four people, one agent each, one branch each, PRs reviewed by a human. 284 tests, ruff. The three traps the agent walked into that we caught: the API paginates at 10,000 and looks like it does not; a negative net price is real and the sentinels are −1/−2/−3; a race chart drawn against a total from a different survey. | 4 |
+| 7:00–8:00 | "How we built it" card | Four people, one agent each, one branch each, PRs reviewed by a human. 388 tests, ruff. The three traps the agent walked into that we caught: the API paginates at 10,000 and looks like it does not; a negative net price is real and the sentinels are −1/−2/−3; a race chart drawn against a total from a different survey. | 4 |
 | 8:00–8:45 | Same card | What we proposed and changed: peer-group outcomes need a stratified sample, and 25 selective schools have no spread, so we pivoted to cuts — the same idea, the reader's own group instead of a synthetic peer. What is next. Questions. | 1 |
 
 A rehearsal tonight decides whether the trend flip at 3:45 stays. If the demo runs
@@ -397,14 +397,17 @@ Listed with a recommendation; the group decides, in the room, before the agents 
 
 ### Demo day — Friday morning
 
-- [ ] `git pull`; `uv sync`; `uv run pytest` — 284 or more, all green.
+- [ ] `git pull`; `uv sync`; `uv run pytest` — 388 or more, all green. Two branches
+      are still open; if either has merged, put the count this run prints into the
+      7:00 line, which is where it gets said out loud.
 - [ ] `.env` present with the MapTiler key; `ls data/*.db` shows all three databases.
 - [ ] `uv run python scripts/seed_demo.py`; open `/profile`, log in as `maya`, see five schools.
 - [ ] Log out. The demo starts signed out.
 - [ ] `uv run uvicorn app.main:app --port 8001` in a terminal that stays visible in the dock, not in an IDE pane.
 - [ ] Browser: one window, one tab, 125% zoom, bookmarks bar hidden, notifications off, other apps closed. Window at the projector's resolution, not the laptop's.
 - [ ] Open `DEMO.md` on a phone or second screen for the URLs and the numbers.
-- [ ] `docs/demo/` screenshots opened in a second tab, in case.
+- [ ] `docs/demo/` screenshots opened in a second tab, in case — the folder is
+      filled at the rehearsal, from the list in `docs/demo/README.md`.
 - [ ] Every presenter has the three "how does this work" answers for their two minutes.
 
 ### Fallbacks
@@ -412,7 +415,9 @@ Listed with a recommendation; the group decides, in the room, before the agents 
 - **Typo or hesitation in the live sign-up:** finish it anyway; if it fails, log in as
   `maya` and say why she exists.
 - **Server dies:** the terminal is visible; restart is one command, ten seconds.
-- **Laptop dies:** the screenshots in `docs/demo/` on a second machine, narrated.
+- **Laptop dies:** the screenshots in `docs/demo/` on a second machine, narrated —
+  which works only if the rehearsal filled that folder. `docs/demo/README.md` lists
+  what to capture; nothing else in the demo depends on it.
 - **Running long at 6:15:** skip the scroll through the last three areas and go to
   the build card. At 7:30, skip the "what we changed" beat and take questions.
 - **The map does not load:** say "needs a key" and keep going; the highlights strip is
