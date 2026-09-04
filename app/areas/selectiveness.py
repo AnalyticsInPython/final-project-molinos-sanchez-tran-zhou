@@ -90,6 +90,9 @@ CUTS = {
         label="Sex",
         metric="Admit rate",
         groups=dict(codes.SEX),
+        # The Profile attribute and the SQLite column behind it are still
+        # named `gender`; renaming them needs a migration. The label above is
+        # the word the reader sees, and it is Sex on every page.
         profile_field="gender",
         places=1,
         count_noun="applicants",

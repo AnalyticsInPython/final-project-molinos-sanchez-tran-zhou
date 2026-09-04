@@ -32,6 +32,8 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
+from app import codes
+
 DB_PATH = Path(__file__).resolve().parent.parent / "data" / "profiles.db"
 
 # A shortlist can hold more schools than a single comparison can show — the
@@ -57,11 +59,31 @@ RACES = {
     9: "Prefer not to say",
 }
 
-# IPEDS records sex as men and women only, so those are the codes that can be
-# joined to outcome data. A third option is offered and stored as unset,
-# because a form that forces a person into a box the data does not have is
-# worse than a form that admits the limit.
-GENDERS = {1: "Man", 2: "Woman", 0: "Another identity, or prefer not to say"}
+# The sex someone answers with, in IPEDS's own codes, so an answer here joins
+# straight onto `admissions_enrollment.sex` and can drive a cut. Read out of
+# `app/codes.py` rather than written again, so the word on the questionnaire
+# and the word on the comparison card cannot drift apart — they had, and that
+# is what this change fixes.
+#
+# **A third option used to be offered here and has been withdrawn.** Code 0,
+# "Another identity, or prefer not to say", was stored as unset, on the
+# argument that a form which forces a person into a box the data does not have
+# is worse than a form that admits the limit. That is reversed: IPEDS carries
+# two sex categories and no third row, so code 0 could never be joined to
+# anything and never drove a figure, and the blank "Prefer not to say" option
+# both selects already lead with says the same thing without minting a code
+# that means nothing to the data. Answering stays optional; only the extra
+# code is gone.
+#
+# A profile still holding 0 from before reads as unset — `GENDERS.get(0)` is
+# None, so no label, no cut, no crash — and saving the form again clears it,
+# because `clean_choice` discards a code that is not offered. Held by
+# tests/test_questionnaire.py and tests/test_cuts.py.
+#
+# The constant is `GENDERS` and the stored column and `Profile` field are
+# `gender` because renaming a SQLite column needs a migration and four modules
+# would move with it. The word the reader sees is Sex, everywhere.
+GENDERS = dict(codes.SEX)
 
 # Where someone lives decides whether a public school's in-state or
 # out-of-state tuition applies, and the two differ by $38,000 at Michigan.
@@ -90,6 +112,9 @@ ADDED_COLUMNS = {
     "gpa": "REAL",
     "home_state": "TEXT",
     "race": "INTEGER",
+    # Holds the sex code. The column keeps the name it was created with, and
+    # renaming it would need a migration every saved profile has to survive;
+    # the reader-facing word is Sex. See GENDERS above.
     "gender": "INTEGER",
     "stage": "TEXT",
     # Salt and hash together in one self-describing string; see
@@ -195,6 +220,7 @@ class Profile:
     gpa: float | None = None
     home_state: str | None = None
     race: int | None = None
+    # The sex code, named for the column it comes from. Shown as Sex.
     gender: int | None = None
     stage: str | None = None
     # Whether a passphrase is set, never the hash itself. The hash has no
@@ -213,6 +239,8 @@ class Profile:
 
     @property
     def gender_label(self) -> str | None:
+        """The sex answer as a word, or None for unset — including a profile
+        still holding the withdrawn code 0, which has no label to give."""
         return GENDERS.get(self.gender)
 
     @property

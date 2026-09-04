@@ -100,7 +100,7 @@
       <h2 class="panel-title">About you</h2>
       <p class="panel-hint">
         These tailor what the comparison shows. Home state decides which tuition applies at a
-        public university; race and gender let outcome rates be shown for students like you
+        public university; race and sex let outcome rates be shown for students like you
         rather than the headline. Every one can be cleared again.
       </p>
       <form action="/profile/details" method="post">
@@ -130,7 +130,8 @@
               {% endfor %}
             </select>
           </label>
-          <label>Gender
+          {# `gender` is the stored column's name; the word shown is Sex. #}
+          <label>Sex
             <select class="field" name="gender">
               <option value="">Prefer not to say</option>
               {% for code, label in genders.items() %}

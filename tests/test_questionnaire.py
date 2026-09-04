@@ -46,7 +46,7 @@ def test_answers_round_trip(conn):
     assert profile.home_state == "NY"
     assert profile.gpa == 3.85
     assert profile.race_label == "Hispanic or Latino"
-    assert profile.gender_label == "Man"
+    assert profile.gender_label == "Male"
     assert profile.stage_label == "Choosing between offers I have"
 
 
@@ -71,6 +71,56 @@ def test_race_99_is_not_an_identity():
 def test_every_offered_race_joins_to_the_outcome_data():
     """The codes are IPEDS codes, so a saved answer can filter grad_rates."""
     assert set(profiles.RACES) <= set(range(1, 10))
+
+
+def test_the_only_sexes_offered_are_male_and_female():
+    """IPEDS publishes two sex categories, so two is what the form offers.
+
+    The words are checked, not only the codes: the questionnaire and the
+    comparison card have to say the same thing, and they say it by both
+    reading `codes.SEX`.
+    """
+    from app import codes
+
+    assert profiles.GENDERS == {1: "Male", 2: "Female"}
+    assert profiles.GENDERS == codes.SEX
+
+
+def test_the_retired_third_option_is_no_longer_selectable():
+    """Code 0 was "Another identity, or prefer not to say" and is withdrawn.
+
+    Declining is still a real answer — it is the blank option every select
+    leads with, which arrives here as "" and resolves to None. What is gone is
+    a code that IPEDS has no row for and that therefore drove nothing.
+    """
+    assert 0 not in profiles.GENDERS
+    assert profiles.clean_choice("0", profiles.GENDERS) is None
+    assert profiles.clean_choice(0, profiles.GENDERS) is None
+    assert profiles.clean_choice("", profiles.GENDERS) is None  # the blank option
+    assert profiles.clean_choice("1", profiles.GENDERS) == 1
+    assert profiles.clean_choice("2", profiles.GENDERS) == 2
+
+
+def test_a_profile_still_holding_the_retired_code_reads_as_unset(conn):
+    """Somebody answered 0 before it was withdrawn. Their profile must open.
+
+    It behaves as unset — no label, and tests/test_cuts.py holds that it
+    drives no cut — and saving the form again clears the column, because
+    `clean_choice` discards a code that is not offered.
+    """
+    profiles.get_or_create(conn, "early")
+    conn.execute("UPDATE profiles SET gender = 0 WHERE username = 'early'")
+    conn.commit()
+
+    profile = profiles.get(conn, "early")
+    assert profile.gender == 0  # the stored row is untouched
+    assert profile.gender_label is None  # and says nothing about them
+
+    profiles.set_details(
+        conn, "early", display_name=None, gpa=None, home_state=None, race=None,
+        gender=profiles.clean_choice("0", profiles.GENDERS), stage=None,
+    )
+    assert profiles.get(conn, "early").gender is None
 
 
 @pytest.mark.parametrize(

@@ -54,7 +54,7 @@ SAT = 1480
 ACT = None  # She has an SAT and no ACT; set_scores replaces both
 GPA = 3.8  # Saved, compared to nothing, and the form says so
 RACE = 3  # Hispanic or Latino: >= 30 in the cohort at all five schools
-GENDER = 2  # Woman: every school reports admits by sex
+GENDER = 2  # Female: every school reports admits by sex
 
 # Berkeley, Stanford, MIT, Carnegie Mellon, Michigan — in the order the
 # comparison should read them, which is the order they are added in. Five is
@@ -126,7 +126,7 @@ def main() -> None:
     print(f"  Family income  band {profile.income_bracket}, {BANDS[profile.income_bracket]}")
     print(f"  SAT / GPA      {profile.sat_score} / {profile.gpa}")
     print(f"  Race           {profile.race_label}")
-    print(f"  Gender         {profile.gender_label}")
+    print(f"  Sex            {profile.gender_label}")
     print(f"\n  Shortlist ({len(profile.shortlist)}), in order:")
     for position, unitid in enumerate(profile.shortlist, start=1):
         color = brand_color(unitid, position - 1)

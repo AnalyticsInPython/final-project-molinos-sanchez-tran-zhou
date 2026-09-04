@@ -4,13 +4,19 @@ Third copy prevention. These labels were written out once in
 `app/areas/enrollment.py` and again in `app/profiles.py`, and retention needs
 them too — at which point a shared home is cheaper than keeping three in step.
 
-**`app/profiles.py` deliberately keeps its own and is not migrated here.** Its
-list looks almost identical and means something different: code 9 there is
-"Prefer not to say", a person declining to answer a form, where code 9 in the
-federal data is "Race/ethnicity unknown", a school that did not report. Code 8
-is likewise "Nonresident" as a self-description and "International" as a
+**`app/profiles.py` deliberately keeps its own race list and is not migrated
+here.** That list looks almost identical and means something different: code 9
+there is "Prefer not to say", a person declining to answer a form, where code 9
+in the federal data is "Race/ethnicity unknown", a school that did not report.
+Code 8 is likewise "Nonresident" as a self-description and "International" as a
 category of student. Folding those together would produce a mapping that reads
 correctly and mislabels half its rows.
+
+Its *sex* map is a different story and is now this one: `profiles.GENDERS` is
+built from `SEX` below, so the questionnaire's two options and the cut's two
+columns cannot drift apart into different words again, which is exactly what
+had happened — the form said "Gender / Man / Woman" while the card said
+"Sex / Men / Women".
 """
 
 # Verified against the Urban Institute API's varlist. 99 is the published
@@ -39,8 +45,16 @@ RACE_ORDER = [1, 2, 3, 4, 5, 6, 7, 8, 9]
 # registrar, not the school.
 NOT_AN_IDENTITY = (8, 9)
 
-# IPEDS records sex as men and women only. 99 is the total.
-SEX = {1: "Men", 2: "Women"}
+# IPEDS records sex in two categories only. 99 is the total.
+#
+# "Male" and "Female" rather than "Men" and "Women" because these labels are
+# now also the questionnaire's answers — `profiles.GENDERS` reads this map —
+# and an answer someone picks about themselves reads as an adjective, where a
+# chart column counting people reads as a plural noun. One of the two had to
+# give, and the form is where the word is chosen. The areas that count heads
+# rather than cut a rate (enrollment, athletics) keep their own "Women"/"Men"
+# column headings; those are populations, not an answer anyone gave here.
+SEX = {1: "Male", 2: "Female"}
 
 # The total across all categories, in every dimension IPEDS breaks out.
 TOTAL = 99

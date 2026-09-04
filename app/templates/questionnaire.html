@@ -154,7 +154,7 @@
     <section class="panel">
       <h2 class="panel-title">About you <span class="opt">optional</span></h2>
       <p class="panel-hint">
-        Graduation rates are published broken out by race and by gender, and the gaps are real
+        Graduation rates are published broken out by race and by sex, and the gaps are real
         &mdash; at Michigan, 82% of Black students finish against 96% of Asian students, behind a
         93% headline. Answering lets us show you the rate for students like you rather than the
         average. Skip this and you see the headline, which is the honest default.
@@ -166,7 +166,9 @@
             {% for code, label in races.items() %}<option value="{{ code }}">{{ label }}</option>{% endfor %}
           </select>
         </label>
-        <label><span class="label-text">Gender <span class="opt">optional</span></span>
+        {# Field name and context variable stay `gender` — the stored column keeps
+           the name it was created with. The word shown is Sex. See profiles.GENDERS. #}
+        <label><span class="label-text">Sex <span class="opt">optional</span></span>
           <select class="field" name="gender">
             <option value="">Prefer not to say</option>
             {% for code, label in genders.items() %}<option value="{{ code }}">{{ label }}</option>{% endfor %}
@@ -174,8 +176,10 @@
         </label>
       </div>
       <p class="hint">
-        These come from the categories the federal survey uses. They are narrower than people
-        are, and that limit is the survey's rather than a view about you.
+        These come from the categories the federal survey uses &mdash; race has nine, sex has
+        two, and there is no third row to join an answer to. They are narrower than people are,
+        and that limit is the survey's rather than a view about you. Leave either one blank and
+        you see the headline instead.
       </p>
     </section>
 

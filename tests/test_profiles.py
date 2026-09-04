@@ -413,3 +413,49 @@ def test_the_hash_never_appears_in_a_rendered_page(client):
     assert "scrypt" not in page
     assert GOOD not in page
     assert "passphrase_hash" not in page
+
+
+# --- the word on the page ---------------------------------------------------
+#
+# The comparison card has always said "Sex". The two forms said "Gender", and
+# offered a third answer the federal data has no row for. These hold the fix
+# from the reader's side, which is the only side that noticed the difference.
+
+
+def test_both_forms_say_sex_and_never_gender(client):
+    """One word on every page a reader sees, including the label's `for`-less
+    wrapper text. The `name="gender"` attribute is the stored column and stays;
+    it is the only place the old word is allowed to survive."""
+    client.post("/profile/new", data={"username": "maya"})
+
+    for page in (client.get("/profile/new").text, client.get("/profile").text):
+        without_attributes = page.replace('name="gender"', "")
+        assert "Gender" not in without_attributes
+        assert "gender" not in without_attributes
+        assert ">Sex" in page or "Sex <span" in page
+
+
+def test_the_forms_offer_exactly_male_and_female(client):
+    """Two options, plus the blank one. Nothing else is selectable."""
+    client.post("/profile/new", data={"username": "maya"})
+
+    for page in (client.get("/profile/new").text, client.get("/profile").text):
+        select = page.split('name="gender"', 1)[1].split("</select>", 1)[0]
+        assert select.count("<option") == 3
+        assert ">Male<" in select and ">Female<" in select
+        assert 'value="1"' in select and 'value="2"' in select
+        assert 'value="0"' not in select
+        for retired in ("Man<", "Woman<", "Another identity"):
+            assert retired not in select
+
+
+def test_answering_is_still_optional_on_both_forms(client):
+    """The blank default is the whole reason withdrawing code 0 costs nothing:
+    declining is still an answer, it is just not a code any more. The select
+    must also not become `required`."""
+    client.post("/profile/new", data={"username": "maya"})
+
+    for page in (client.get("/profile/new").text, client.get("/profile").text):
+        select = page.split('name="gender"', 1)[1].split("</select>", 1)[0]
+        assert '<option value="">Prefer not to say</option>' in select
+        assert "required" not in select

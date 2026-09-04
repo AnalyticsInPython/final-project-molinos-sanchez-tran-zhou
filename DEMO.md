@@ -8,7 +8,7 @@ The roadmap remains the source; this file is the script.
 **The demo profile is seeded, not typed.** `scripts/seed_demo.py` creates or resets
 `maya` in `data/profiles.db` — display name Maya, *Deciding where to apply*, home
 state CA, family income band 2 ($30,001–48,000), SAT 1480, GPA 3.8, Hispanic or
-Latino, Woman — with a shortlist of exactly five schools in this order: **UC
+Latino, Female — with a shortlist of exactly five schools in this order: **UC
 Berkeley, Stanford, MIT, Carnegie Mellon, Michigan**. Run it as often as you like:
 
 ```

@@ -67,7 +67,7 @@ def test_the_labels_those_codes_render_as_are_the_ones_the_script_says(conn):
     profile = seed_demo.seed(conn)
 
     assert profile.race_label == "Hispanic or Latino"
-    assert profile.gender_label == "Woman"
+    assert profile.gender_label == "Female"
     assert profile.stage_label == "Deciding where to apply"
 
 
