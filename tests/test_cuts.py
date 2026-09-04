@@ -90,16 +90,26 @@ def test_tailoring_picks_what_the_profile_holds():
 
 
 def test_declining_to_say_drives_nothing():
-    """Gender 0 and race 9 are a person declining the question, not a group."""
+    """Race 9 is a person declining the question, not a group.
+
+    Sex code 0 was the same thing and has been withdrawn — the form now says
+    "Prefer not to say" with a blank value instead of minting a code IPEDS has
+    no row for. A profile saved while 0 was still offered has to keep working,
+    and this is where that is checked: an unknown code is not a group, so it
+    is not a cut and not a signal.
+    """
     assert cuts.choose(selectiveness, None, _profile(gender=0)) is None
     assert cuts.choose(retention, None, _profile(race=9)) is None
     assert cuts.signals(selectiveness, _profile(gender=0, race=9)) == []
     assert cuts.signals(retention, _profile(gender=0, race=9)) == []
+    # And an explicit "show me the sex cut" on such a profile draws the
+    # groups with nobody emphasised, rather than raising on a missing label.
+    assert cuts.choose(selectiveness, "sex", _profile(gender=0)) == cuts.Selection("sex", None)
 
 
 def test_signals_name_what_the_button_will_use():
     reader = _profile(gender=2, race=3)
-    assert cuts.signals(selectiveness, reader) == ["Women"]
+    assert cuts.signals(selectiveness, reader) == ["Female"]
     assert cuts.signals(retention, reader) == ["Hispanic"]
     assert cuts.wants(selectiveness) == ["sex"] and cuts.wants(retention) == ["race"]
 
@@ -113,6 +123,33 @@ def test_every_school_reports_admits_by_sex(conn):
     for row in context["rows"]:
         assert row["total"] is not None
         assert set(row["rates"]) == {1, 2}, row["school"].short
+
+
+def test_a_stored_code_zero_never_reaches_the_page(tmp_path, monkeypatch):
+    """The retired third option, end to end: a profile holding 0 tailors to
+    nothing, and the card offers the button disabled rather than half-drawing
+    a group with no name."""
+    pytest.importorskip("httpx")
+    from fastapi.testclient import TestClient
+
+    from app import profiles
+    from app.main import app
+
+    real_connect = profiles.connect
+    monkeypatch.setattr(profiles, "connect", lambda: real_connect(tmp_path / "profiles.db"))
+    with profiles.connect() as pconn:
+        profiles.get_or_create(pconn, "early")
+        pconn.execute("UPDATE profiles SET gender = 0 WHERE username = 'early'")
+        pconn.commit()
+
+    client = TestClient(app, cookies={"profile": "early"})
+    base = f"/compare?school={MICHIGAN}&school={BROWN}&area=selectiveness"
+
+    page = client.get(base + "&tailor=selectiveness")
+    assert page.status_code == 200
+    assert "Tailored to you" not in page.text
+    assert "Add your sex to your profile" in page.text
+    assert "Admit rate by sex" not in page.text
 
 
 def test_the_sex_gap_runs_both_ways(conn):
@@ -143,10 +180,11 @@ def test_everyone_is_the_published_total_not_the_sum(conn):
 def test_emphasis_marks_exactly_one_dot_per_school(conn):
     year = latest_year(conn, selectiveness.TABLE)
     context = selectiveness.cut(conn, all_schools(conn), year, cuts.Selection("sex", 2))
-    assert context["own_label"] == "Women"
+    assert context["own_label"] == "Female"
+    assert dict(context["columns"]) == {1: "Male", 2: "Female"}
     for bar in context["figure"]["bars"]:
         assert sum(dot["own"] for dot in bar["dots"]) == 1
-        assert bar["text"].startswith("Women ")
+        assert bar["text"].startswith("Female ")
 
 
 # --- six-year completion by race ----------------------------------------------
@@ -252,14 +290,14 @@ def test_tailoring_reads_the_profile_and_never_the_url(tmp_path, monkeypatch):
     off = client.get(base).text
     assert "Tailored to you" not in off
     assert off.count("Tailor data for me") == 2, "one button per card that can use the profile"
-    assert "Uses your profile: Women" in off and "Uses your profile: Hispanic" in off
+    assert "Uses your profile: Female" in off and "Uses your profile: Hispanic" in off
 
     one = client.get(base + "&tailor=selectiveness").text
-    assert "Tailored to you: Women" in one
+    assert "Tailored to you: Female" in one
     assert "Tailored to you: Hispanic" not in one, "tailoring is per card"
 
     on = client.get(base + "&tailor=selectiveness&tailor=retention").text
-    assert "Tailored to you: Women" in on
+    assert "Tailored to you: Female" in on
     assert "Tailored to you: Hispanic" in on
     assert on.count("Tailored to you &middot; stop") == 2
     for code in ("gender=2", "race=3", "sex:2", "race:3"):
@@ -267,7 +305,7 @@ def test_tailoring_reads_the_profile_and_never_the_url(tmp_path, monkeypatch):
 
     # An explicit choice on one area keeps the emphasis from the profile.
     both = client.get(base + "&tailor=selectiveness&cut=selectiveness:sex").text
-    assert "Tailored to you: Women" in both
+    assert "Tailored to you: Female" in both
 
     # A profile with nothing usable sees the button, disabled, told what to add.
     with profiles.connect() as pconn:
