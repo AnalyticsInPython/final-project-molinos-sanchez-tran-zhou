@@ -216,6 +216,13 @@ def year_meaning(conn: sqlite3.Connection, year: int, trend: bool = False) -> st
     Stanford's grad_rates cohort of 1,738 (cohort_year 2016) equals its fall
     2016 entrants in fall_retention exactly, and its outcome_measures cohort
     of 1,677 (cohort_year 2014) equals its fall 2014 entrants.
+
+    One sentence, and a short one: this line sits above the charts on a card
+    that already carries two notices, and at a projector's viewport every
+    line it wraps to is a line of chart pushed under the fold. It keeps the
+    three facts a reader gets wrong without it — one class, which fall it
+    started, and retention being a different class — and the rest of the
+    explanation is in the card's footnote in templates/areas/retention.html.
     """
     started = _cohort_year(conn, TABLE, year)
     if started is None and trend:
@@ -234,17 +241,12 @@ def year_meaning(conn: sqlite3.Connection, year: int, trend: bool = False) -> st
         )
     if trend:
         return (
-            f"Each year's graduation figures follow one class that started {year - started} "
-            f"years before the label, counted at four years and again at six — {year} is the "
-            f"class of fall {started}. The retention line follows the class that started the "
-            f"year before each label."
+            f"One class per label, counted at four years and again at six; "
+            f"{year} started in fall {started}, retention a year behind."
         )
     return (
-        f"Every graduation figure labelled {year} follows one class — students who started "
-        f"in fall {started} — counted at four years and again at six. The four-year rate is "
-        f"not a later class. {year} is when IPEDS reported them, not when anyone enrolled. "
-        f"Left after year one is a different class: those who started in fall {year - 1} and "
-        f"came back in fall {year}."
+        f"{year} is one class, started in fall {started}, counted at four years and again "
+        f"at six; retention is fall {year - 1}."
     )
 
 
