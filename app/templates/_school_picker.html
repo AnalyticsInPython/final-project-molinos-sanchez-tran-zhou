@@ -19,6 +19,10 @@
   inputs when colours are on), and dispatches a bubbling `<kind>s-changed`
   event carrying the current selection, so a page can react without reaching
   inside it.
+
+  The same door swings inward: dispatch `<kind>s-preset` on `document` with
+  `detail: { ids: [...] }` and those are added in order, exactly as if they had
+  been typed one at a time. The picker never learns where the ids came from.
 #}
 {% set kind = picker_kind | default("school") %}
 <div class="combo" data-token-picker
@@ -200,6 +204,17 @@
       closeMenu();
     }
   }
+
+  // The way in, mirroring the way out. A page that already knows what it wants
+  // in here hands over the ids and nothing else; everything that makes a
+  // selection a selection — order, colour, chips, hidden fields, the count,
+  // the clash check and the `<kind>s-changed` that follows — happens because
+  // this goes through add(), the same call a click on the menu makes. Anything
+  // past MAX, already chosen, or not on the list is ignored, as always.
+  document.addEventListener(KIND + "s-preset", (event) => {
+    const ids = (event.detail && event.detail.ids) || [];
+    ids.forEach((id) => add(id));
+  });
 
   function remove(id) {
     const i = chosen.findIndex((s) => s.id === id);
