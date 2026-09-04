@@ -275,10 +275,96 @@
     .area-head .icon { align-self: center; color: var(--accent); }
     .summary-areas { display: flex; align-items: center; gap: .45rem; min-width: 0; }
     .summary-areas .icon { color: var(--accent); }
+
+    /* --- Present mode -------------------------------------------------
+       Everything under `.present` is for one situation: this app on a
+       projector, at a 1024x576 CSS viewport, read from the back of a room.
+       Nothing here is loaded conditionally and nothing above this line
+       changes, so with the cookie off the page is byte-for-byte what it was.
+
+       The problem it fixes is vertical, not typographic. At that viewport the
+       first chart on a card sat 370-450px below the card's top edge, so the
+       opening screen was the title, the question, a three-line note about
+       what the year means and two stacked warnings — caveats above data. So:
+       the tables and footnotes go, the notices fold to one line each
+       (compare.html), the captions go, and what is left grows.
+
+       The chart text is 13px rather than the 14 the plan asked for, and the
+       difference is not cosmetic. A `font-size` in CSS beats the `font-size`
+       presentation attribute on an SVG <text>, and it is in user units, so
+       the viewBox scale applies on top: a 640-unit chart drawn 864px wide
+       scales by 1.35, which is why 11 units already renders at about 15px.
+       13 units is ~17.5px on the projector, 14 would be ~19.
+
+       14 collides, measured against the demo's own five schools. The worst
+       is the tailored selectiveness card, which draws "Female 17.3% vs
+       15.6% (+1.7)" from x=462 in a 640-unit box: 193 units of text in the
+       178 there are, so "(+1.7)" — the whole point of the row — loses its
+       last characters. Financial aid's band chart labels its lines at the
+       right edge and "Carnegie Mellon" runs 14 units past it; three money
+       labels run 3-5 units past. At 13 the same labels are 0.6 to 6.6 units
+       over, close enough that the fix is to stop clipping rather than to
+       reflow every chart: an outermost <svg> is overflow: hidden by default,
+       and letting those few labels finish inside the card's own 24px of
+       padding is invisible where cutting a digit off a percentage is not.
+       Sizes are absolute px, never rem: an SVG's user units are not the
+       page's. --- */
+    .present .figure svg text { font-size: 13px; }
+    .present .figure svg { overflow: visible; }
+    /* The tables are the same numbers the charts already show, in 12px rows
+       that nobody past the second row can read. Same for the footnotes,
+       which exist for a reader with time. Scoped to `.area` so the profile
+       page's form hints — also `.note` — are left alone; the one thing this
+       does hide that is not a footnote is a trend card's "no data for these
+       schools" line, which only appears on a card that had nothing to draw
+       anyway. */
+    .present .area .scroll,
+    .present .area .note { display: none; }
+    /* A figure's `.sub` is its caption — why the chart is drawn this way,
+       which is what the presenter is saying out loud while it is on screen.
+       Three lines of 13.6px prose is 77px of chart pushed down for something
+       nobody past the front row can read. The exception is the cut's sub,
+       which is not a caption: it names the survey the tailored chart comes
+       from, and "why does everyone here differ from the table below" is a
+       question this demo expects to be asked. */
+    .present .figure .sub { display: none; }
+    .present .figure.cut .sub { display: block; }
+    .present .figure h3 { font-size: 1.15rem; }
+    /* Still one line at 1024px: it is 100 characters or so and the card is
+       about 860px wide. See the `year_meaning` functions in app/areas. */
+    .present .year-meaning { font-size: .95rem; }
+    /* The computed sentence at the top of each card — the one thing on the
+       page that should be readable from the back row without leaning in. */
+    .present .headline { font-size: 1.4rem; line-height: 1.3; }
+    /* Folded notices (see compare.html): the summary has to sit on the same
+       line as the sentence it follows, which a block-level <details> will
+       not do. No marker, since "more" is doing that job. */
+    .present .notice details { display: inline; }
+    .present .notice summary { display: inline; cursor: pointer; text-decoration: underline; }
+    .present .notice summary::-webkit-details-marker { display: none; }
+    /* The toggle itself, in the top bar's spare corner on every page. It
+       lives outside the nav block, because each page writes its own nav and
+       one link here serves all four; it is positioned into the bar rather
+       than laid out in it for the same reason. The corner is genuinely
+       spare: the bar is 4.2rem of logo tall and everything in it is centred
+       on that, so nothing else is within 3rem of the top edge at any window
+       width. Not `fixed` — it should scroll away with the bar it sits in. */
+    .present-toggle { position: absolute; top: .25rem; right: 1rem; font-size: .78rem; color: var(--ink-faint); text-decoration: none; }
+    .present-toggle:hover { text-decoration: underline; }
   </style>
 </head>
-<body>
+{% set here = request.url.path ~ ("?" ~ request.url.query if request.url.query else "") %}
+<body{% if present_mode(request) %} class="present"{% endif %}>
   {% block nav %}{% endblock %}
+  {# Present mode is a plain GET link, not a form and not a script: the demo
+     is driven by clicking, and a link can be clicked from any page and gets
+     the reader back to the one they were on. `next` carries that page; the
+     route refuses anything that is not a path on this site. #}
+  {% if present_mode(request) %}
+    <a class="present-toggle" href="/present/off?next={{ here | urlencode }}">Exit present</a>
+  {% else %}
+    <a class="present-toggle" href="/present/on?next={{ here | urlencode }}">Present</a>
+  {% endif %}
   <div class="wrap">{% block content %}{% endblock %}</div>
   {% block scripts %}{% endblock %}
 </body>
