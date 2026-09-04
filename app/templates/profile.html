@@ -24,7 +24,14 @@
       <label for="username" class="panel-title">Username</label>
       <input class="field" id="username" name="username" type="text"
              placeholder="e.g. jenny" autocomplete="off" required
-             pattern="[a-zA-Z0-9_-]{3,20}" title="3-20 letters, numbers, - or _">
+             {# The hyphen is escaped because Chrome compiles `pattern` with the
+                regexp `v` flag, where a bare `-` inside a character class is a
+                syntax error rather than a literal. The browser then logs
+                "Invalid character in character class" and silently skips the
+                check — the form still worked, because profiles.clean_username
+                validates on the server, but the client-side half was dead and
+                the console said so on stage. #}
+             pattern="[a-zA-Z0-9_\-]{3,20}" title="3-20 letters, numbers, - or _">
       <label for="passphrase" class="panel-title" style="margin-top: 1rem;">
         Passphrase <span class="opt">only if this profile has one</span>
       </label>
@@ -33,7 +40,10 @@
       <button type="submit" style="margin-top: 1rem;">Start</button>
     </form>
   {% else %}
-    <h1>Signed in as {{ profile.username }}</h1>
+    {# `profile.name`, not the username: the nav on every other page greets
+       Maya, and this heading greeted maya. Same person, two spellings, on the
+       one screen that is about who you are. #}
+    <h1>Signed in as {{ profile.name }}</h1>
     <p class="lede">Your scores and shortlist, saved to this browser.</p>
 
     <section class="panel" style="margin-bottom: 1.5rem;">

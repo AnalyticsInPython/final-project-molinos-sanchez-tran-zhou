@@ -459,3 +459,23 @@ def test_answering_is_still_optional_on_both_forms(client):
         select = page.split('name="gender"', 1)[1].split("</select>", 1)[0]
         assert '<option value="">Prefer not to say</option>' in select
         assert "required" not in select
+
+
+def test_the_profile_heading_calls_you_what_the_nav_calls_you(client):
+    """`profile.name`, not the username.
+
+    The nav on the landing page and on every comparison says "Signed in as
+    Maya" and this heading said "Signed in as maya" — one person, two
+    spellings, on the screen whose subject is who you are.
+    """
+    client.post("/profile/new", data={"username": "maya", "display_name": "Maya"})
+
+    page = client.get("/profile").text
+    heading = page.split("<h1>", 1)[1].split("</h1>", 1)[0]
+    assert heading == "Signed in as Maya"
+
+    # A profile that never gave a name falls back to the username, so the
+    # heading is never blank; `Profile.name` is what guarantees that.
+    client.cookies.clear()
+    client.post("/profile/new", data={"username": "nameless"})
+    assert "Signed in as nameless" in client.get("/profile").text

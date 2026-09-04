@@ -180,3 +180,109 @@ def test_the_questionnaire_never_offers_the_saved_schools_button():
     assert 'role="combobox"' in page, "the questionnaire should still have the picker"
     assert "Use my saved schools" not in page
     assert "shortlist" not in page.lower(), "no trace of a saved list on the sign-up form"
+
+
+# --- HTML `pattern` attributes ------------------------------------------------
+#
+# Same shape as the checks above: something that fails silently in a browser and
+# in no test. `pattern="[a-zA-Z0-9_-]{3,20}"` on the sign-in form was a valid
+# Python regex, a valid JavaScript `RegExp`, and a *syntax error* to Chrome,
+# which compiles the attribute with the `v` flag — where an unescaped `-` inside
+# a character class is reserved rather than literal. Chrome logs "Invalid
+# character in character class" and then ignores the attribute entirely, so the
+# field validated nothing while looking as though it did. The server still
+# refused a bad username, which is why nobody noticed until the console was on a
+# projector.
+
+PATTERNS = re.compile(r'\bpattern="([^"]*)"')
+
+
+def _bare_hyphens(pattern: str) -> list[int]:
+    """Offsets of every `-` in a character class that a browser will reject.
+
+    Under the `v` flag a `-` inside `[...]` is legal in exactly two places: as
+    the range operator between two single characters, and escaped as `\\-`.
+    Everywhere else it is reserved syntax and the whole pattern is thrown out.
+
+    Note that first and last are *not* safe, whatever the folklore says —
+    `[-a-z]` and `[a-z-]` are both errors, and so is a second `-` after a range
+    has already been consumed (`[a-z-0]`). Each of these was checked against
+    V8's `v` implementation, which is the one Chrome uses on the form.
+    """
+    bad, i, depth = [], 0, 0
+    # Whether the character just read is available as a range's left-hand side.
+    # A range consumes its right operand, so `a-z` cannot be chained into `-0`.
+    operand = False
+    while i < len(pattern):
+        char = pattern[i]
+        if char == "\\":
+            operand = depth > 0
+            i += 2
+            continue
+        if depth == 0:
+            if char == "[":
+                depth, operand = 1, False
+                i += 1
+                if pattern[i : i + 1] == "^":
+                    i += 1
+                # A `]` in first position is a literal, not the end of the class.
+                if pattern[i : i + 1] == "]":
+                    operand = True
+                    i += 1
+            else:
+                i += 1
+            continue
+        if char == "]":
+            depth, operand = 0, False
+            i += 1
+            continue
+        if char == "-":
+            if operand and pattern[i + 1 : i + 2] not in ("", "]"):
+                # A range: step over the operator and its right-hand side,
+                # which cannot then serve as the left side of another range.
+                i += 3 if pattern[i + 1] == "\\" else 2
+                operand = False
+            else:
+                bad.append(i)
+                i += 1
+            continue
+        operand = True
+        i += 1
+    return bad
+
+
+def test_there_is_a_pattern_attribute_to_check():
+    assert any(PATTERNS.search(path.read_text()) for path in HTML), (
+        "no pattern= attributes found — the checks below would pass vacuously"
+    )
+
+
+@pytest.mark.parametrize("path", HTML, ids=lambda p: p.name)
+def test_every_pattern_attribute_is_a_regex_a_browser_will_accept(path):
+    for pattern in PATTERNS.findall(path.read_text()):
+        try:
+            re.compile(pattern)
+        except re.error as bad:
+            pytest.fail(f"{path.name}: pattern={pattern!r} is not a regex — {bad}")
+
+        assert not _bare_hyphens(pattern), (
+            f"{path.name}: pattern={pattern!r} has a bare '-' inside a character "
+            "class. Chrome compiles this attribute with the `v` flag, rejects the "
+            "whole pattern as a syntax error, and then validates nothing at all. "
+            "Escape it as '\\-'; putting it first or last does not help under `v`."
+        )
+
+
+def test_the_hyphen_check_would_catch_the_bug_it_was_written_for():
+    """The checker itself, since a checker that always passes is worse than none.
+
+    Every expectation here was read off V8 rather than reasoned about, because
+    the reason the bug shipped is that the rule is not the one anybody assumes.
+    """
+    assert _bare_hyphens("[a-zA-Z0-9_\\-]{3,20}") == []  # escaped: the fix
+    assert _bare_hyphens("[a-z]") == [] and _bare_hyphens("[a--z]") == []  # ranges
+    assert _bare_hyphens("[a-zA-Z0-9_-]{3,20}")  # the bug: trailing
+    assert _bare_hyphens("[-a-z]")  # leading is no better
+    assert _bare_hyphens("[^-a]")  # nor is leading a negated class
+    assert _bare_hyphens("[a-z-0]")  # a range cannot be chained into another
+    assert _bare_hyphens("[a-z]-[0-9]") == []  # outside a class it is a literal
