@@ -2,109 +2,93 @@
 
 Martin Molinos — In League (Molinos, Sanchez, Tran, Zhou)
 
-Six things I watched go wrong while working with Claude this week.
+Five things I watched go wrong while working with Claude this week. Other things
+went wrong on this project that my teammates caught; these are the ones I was in
+the loop for.
 
-## 1. The chart that wasn't there, twice
+## 1. A plan for the four of us, written without reading the brief
 
-Claude built a page for my group and told me it was finished. The main chart on
-it was blank.
+Claude gave me a detailed plan for splitting the work between my groupmates and
+me, with an argument for each piece.
 
-**How I noticed.** I opened it and looked at it.
+**How I noticed.** Nothing in it was wrong exactly. It just didn't sound like it
+came from anywhere. I said I wasn't convinced, that there was no rubric behind
+it, and to go read the syllabus — which was on GitHub the whole time.
 
-**What went wrong.** The bars used the wrong kind of HTML tag — one the browser
-won't let you set a height on, because it's meant to sit inside a line of text.
-They were in the code and came out with no height. Nothing crashed and nothing
-warned me: the HTML was technically correct.
+**What went wrong.** It had written the plan without it. Once it read the
+syllabus, the work split turned out not to be the problem: the brief requires a
+data-analysis component, and we had cut both analytical pieces an hour earlier.
 
-**What I did.** It fixed the CSS. An hour later the colour squares next to each
-school didn't show either — same wrong tag, in a table. It had explained the
-mistake to me an hour earlier and then made it again. Now I don't assume a bug it
-just explained is one it won't repeat.
+**What I did.** Made it read the syllabus before advising me again, and put the
+analysis back. It's the centre of our demo now.
 
-## 2. Colours picked by taste
+## 2. "Finished" was a page with a blank centre
+
+Claude built me a page summarising our scope to send to my teammates, and told me
+it was done.
+
+**How I noticed.** I read it and it was a mess. I said so, and told it to open it
+in Chrome and see it the way I see it.
+
+**What went wrong.** Made to look, it found something I hadn't: the bars in the
+main chart were inline elements, which a browser won't apply a height to. Six
+empty grey tracks where the centrepiece was. Nothing crashed — the HTML was valid.
+
+**What I did.** I didn't diagnose this one. I refused the result and made it go
+check, and it admitted it had never seen the page, only its own CSS. "Finished"
+now means finished and looked at.
+
+## 3. Colours picked by taste
 
 Two of the five lines on our chart looked like the same colour to me.
 
-**How I noticed.** I told it the chart was hard for me to read.
+**How I noticed.** I told it the chart was hard to read as a human, and that I
+shouldn't have to match a line to a legend to know which school I'm looking at.
 
-**What went wrong.** It picked the colours by eye. There's an actual measurement
-for how far apart two colours look, and when it finally ran it, my blue and
-purple came out at 7.3 where 15 is the minimum — 3.4 for someone colourblind.
+**What went wrong.** It had picked the colours by eye. There's an actual
+measurement for how far apart two look, and when it finally ran it, my blue and
+violet came out 7.3 apart against a floor of 15 — 3.4 for someone colourblind.
 
-**What I did.** Made it run the check instead of eyeballing it. I was right that
-something was off; I couldn't have told you why. The number did that part.
+**What I did.** Made it measure instead of eyeballing, and swap in colours that
+pass. I was right that something was off; I couldn't have told you why. The
+number did that part.
 
-## 3. Questions that changed nothing
+## 4. Sent to sign up for something we already had
 
-The sign-up tells you your answers change what you see. Two of the three changed
-nothing.
+The map needed a MapTiler key, and Claude walked me through creating an account
+to get one.
 
-**How I noticed.** I filled in the questionnaire and went looking for what my
-answers had done to the page.
+**How I noticed.** I asked why I had to log in at all, and whether users would
+too. It said you sign in once, as the developer, to obtain a key. So I asked the
+obvious next thing: doesn't that mean my groupmate already got one?
 
-**What went wrong.** They were saved and never read back. Saving is the part you
-can watch working, so it looked finished. The page promised in writing that your
-stage "decides what leads the comparison", and nothing decided anything.
+**What went wrong.** It did. The map already worked in the repo, so the key
+existed in the team. Claude answered every question I asked accurately and never
+raised the one that made the task unnecessary.
 
-**What I did.** Home state now sets the in-state or out-of-state price, and stage
-picks which area leads. GPA still changes nothing, so we say so in the demo
-instead of pretending.
+**What I did.** Asked Rafael for the key. Now I ask what a task is for before I
+start it, not halfway through.
 
-## 4. The warning label named the wrong source
+## 5. The exercise that turned into a testing tutorial
 
-A notice on each card says how old the numbers are and who published them. It
-credited IPEDS for figures that came from the College Scorecard.
+In the buggy-reports exercise we were meant to find the bugs planted in the code,
+and the teacher had said to find them without the agent's help.
 
-**How I noticed.** I read it.
+**How I noticed.** I'd fixed two and asked what testing a programmer would do
+next. It came back with six techniques and commands to generate adversarial
+filenames. I said I didn't think I was supposed to be doing all this — the point
+was the problems already in the code — and that we should stick to the sample
+data.
 
-**What went wrong.** Every other area is IPEDS, so "IPEDS" was written straight
-into the notice. After graduation is the one card pulling from a different
-agency, and the notice said IPEDS anyway.
+**What went wrong.** It answered my question well and lost the assignment doing
+it. Its reply was "You're right, and I overshot."
 
-**What I did.** The card now tells the notice which agency it's using. Blaming
-the wrong agency isn't a vague error, it's a wrong fact printed on the page.
-
-## 5. Five schools blamed for one survey ending
-
-I asked the financial aid card for every year it has. It came back saying all
-five of my schools were missing years.
-
-**How I noticed.** I read the notice above the chart and it didn't match what I
-knew: none of these five had stopped reporting anything.
-
-**What went wrong.** Net price stops in 2021 and I'd asked through 2024, so the
-last three years are empty for everybody. Each card worked that out separately
-and phrased it as a fact about the schools rather than about the survey. Not
-vague, but pointed the wrong way: a reader would sensibly prefer whichever school
-we happened not to name.
-
-**What I did.** That arithmetic lives in one place now, and cuts the window to
-the years the survey covers before naming anybody. The half that was true
-survived — two schools really are missing a year the others report, and those two
-are still named.
-
-## 6. Validation that was silently switched off
-
-The sign-in box has a rule saying which characters a username may contain. Chrome
-had been throwing it away and checking nothing.
-
-**How I noticed.** A red line in the browser console during a run-through, on the
-screen we're presenting from.
-
-**What went wrong.** The rule is valid in Python and valid in JavaScript, and
-Chrome rejects it: a hyphen means something different under a newer setting
-Chrome applies to that attribute. When it can't read the rule it discards it
-silently. Signing in still worked, because the server checks too; what was dead
-was the half that warns you as you type.
-
-**What I did.** Escaped the hyphen, and added a check over every rule of this
-kind in the project. The reason this shipped is that the rule is surprising, so
-we didn't reason about it — we ran 22 patterns through the browser's own engine
-and checked the answers.
+**What I did.** Pulled it back and finished the bugs. It follows the question you
+asked, not the task you're on, and I'm the only one holding the task.
 
 ## The pattern
 
-Anything Claude could check by itself, it checked, and got right. Anything that
-needed a person to actually look, it got wrong and then told me it was done. Five
-of these six I found by opening a page and reading it. The suite is 431 tests and
-green; not one of these came out of it.
+None of these came from a test, and none from an error message. All five came
+from being unconvinced by a confident answer. In three of them I couldn't say
+what was wrong — only that something was, and that I wasn't accepting it yet.
+Claude found the cause each time, but only once I made it go and look.
