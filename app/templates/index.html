@@ -3,7 +3,7 @@
 {% block nav %}
   <nav class="topbar">
     <div class="inner">
-      <a class="brand" href="/">In League</a>
+      <a class="brand" href="/"><img class="brand-logo" src="/static/logo.png" alt="In League"></a>
       <span class="nav-actions">
         {% if profile %}
           <a class="back" href="/profile">Signed in as {{ profile.name }}</a>
@@ -17,8 +17,60 @@
 {% endblock %}
 
 {% block content %}
-  <h1>In League</h1>
-  <p class="lede">What a school actually costs at your family's income — not its sticker price.</p>
+  <div class="hero">
+    <div class="hero-text">
+      <h1>In League</h1>
+      <p class="lede">See how colleges actually compare &mdash; cost, outcomes, who goes there &mdash; not just the sticker price.</p>
+      <p class="intro-dek">
+        Building a list, weighing offers, or just curious how a few schools stack up &mdash;
+        pick some schools, pick what you want answered, and see them side by side. Sign in
+        to tailor the numbers to your own income and profile.
+      </p>
+    </div>
+    {#
+      A real photo, deliberately not one of the 25 schools being compared —
+      SCOPE.md's case against campus photography was about the comparison
+      itself implying an endorsement; an unidentified, generic building on
+      the neutral landing page (before anyone has picked a school) doesn't
+      carry that risk the way a photo of Yale or Stanford would. Replaced
+      the earlier drawn line-art motif on request.
+
+      Source: "Brown building with green grass field" by Camilo Botia
+      (@camesbot) on Unsplash — https://unsplash.com/photos/k4vFDPJoDZk.
+      Unsplash License: free for commercial and noncommercial use, no
+      permission or attribution legally required. Credited anyway, in the
+      corner, because it costs one line and the photographer did the work.
+    #}
+    <figure class="hero-photo">
+      <img src="/static/hero-campus.jpg" alt="" loading="eager">
+      <figcaption>Photo by Camilo Botia on Unsplash</figcaption>
+    </figure>
+  </div>
+
+  <ol class="steps">
+    <li>
+      <span class="step-num">1</span>
+      <div>
+        <strong>Pick up to five schools</strong>
+        <p>Search by name below.</p>
+      </div>
+    </li>
+    <li>
+      <span class="step-num">2</span>
+      <div>
+        <strong>Pick what to compare</strong>
+        <p>Cost, selectiveness, outcomes, who goes there &mdash; whatever you actually want answered.</p>
+      </div>
+    </li>
+    <li>
+      <span class="step-num">3</span>
+      <div>
+        <strong>See it side by side</strong>
+        <p>Every figure sourced and dated, with the gaps the sticker price hides made visible.</p>
+      </div>
+    </li>
+  </ol>
+
   {% if profile and profile.shortlist %}
     <p class="hint">
       <a href="/compare?{% for u in profile.shortlist[:5] %}school={{ u }}{% if not loop.last %}&{% endif %}{% endfor %}">

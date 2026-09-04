@@ -27,6 +27,7 @@ from typing import Annotated
 
 from fastapi import FastAPI, Form, Query, Request
 from fastapi.responses import RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from app import areas, cuts, env, offers, profiles
@@ -38,6 +39,10 @@ from app.schools import all_schools, selected
 env.load()
 
 app = FastAPI(title="In League")
+# The one asset that isn't generated from data: the front-page hero photo.
+# See templates/index.html's comment on `.hero` for sourcing and why it
+# replaced the earlier drawn motif.
+app.mount("/static", StaticFiles(directory=Path(__file__).parent / "static"), name="static")
 templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
 templates.env.filters["money"] = money
 templates.env.filters["percent"] = percent

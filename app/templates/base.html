@@ -4,6 +4,14 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}In League{% endblock %}</title>
+  <link rel="icon" type="image/png" href="/static/favicon.png">
+  {# Sora: headings only, body text stays on the system font for readability
+     and load speed. Picked for the "modern, still credible" register this
+     project needs — SaaS-forward without tipping into the glossy-brochure
+     look the project has explicitly argued against elsewhere. #}
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
   <style>
     :root {
       --ground: #f7f8f5;
@@ -13,6 +21,12 @@
       --ink-faint: #7b857e;
       --rule: #dce1d9;
       --accent: #0b6b57;
+      --accent-bright: #12a381;
+      /* A second, warmer accent used sparingly — gradients and the hero
+         wash, never body text or anything that needs to stay legible at
+         small sizes. Gold-on-green reads as "collegiate", not "startup". */
+      --accent-2: #d9a441;
+      --heading-font: "Sora", system-ui, -apple-system, sans-serif;
     }
     * { box-sizing: border-box; }
     body {
@@ -23,12 +37,13 @@
     }
     .topbar { background: var(--surface); border-bottom: 1px solid var(--rule); }
     .topbar .inner { max-width: 60rem; margin: 0 auto; padding: .85rem 1.5rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
-    .brand { font-weight: 700; color: var(--ink); text-decoration: none; letter-spacing: -.01em; }
+    .brand { display: flex; align-items: center; font-family: var(--heading-font); font-weight: 700; font-size: 1.05rem; color: var(--ink); text-decoration: none; letter-spacing: -.01em; }
+    .brand-logo { height: 4.2rem; width: auto; display: block; }
     .back { font-size: .9rem; text-decoration: none; }
     .back:hover { text-decoration: underline; }
     .wrap { max-width: 60rem; margin: 0 auto; padding: 2.5rem 1.5rem 5rem; }
-    h1 { font-size: 1.9rem; margin: 0 0 .4rem; }
-    h2 { font-size: 1.3rem; margin: 0; }
+    h1 { font-family: var(--heading-font); font-size: 2.35rem; font-weight: 800; letter-spacing: -.02em; line-height: 1.15; margin: 0 0 .5rem; }
+    h2 { font-family: var(--heading-font); font-size: 1.25rem; font-weight: 700; margin: 0; }
     a { color: var(--accent); }
     .lede { color: var(--ink-soft); margin: 0 0 2rem; }
     fieldset { border: 1px solid var(--rule); border-radius: 4px; background: var(--surface); padding: 1rem 1.25rem; margin: 0 0 1.5rem; }
@@ -38,6 +53,23 @@
     .chip { display: inline-block; vertical-align: -1px; width: .7rem; height: .7rem; border-radius: 2px; flex: none; margin-right: .15rem; }
     button { font: inherit; font-weight: 600; background: var(--accent); color: #fff; border: 0; border-radius: 4px; padding: .6rem 1.4rem; cursor: pointer; }
     button:disabled { background: var(--rule); color: var(--ink-faint); cursor: not-allowed; }
+    /* The one prominent call-to-action button (Compare) gets its own,
+       stronger treatment — deliberately scoped to `#submit` by id rather
+       than broadening the bare `button` rule above, which every selection
+       control (year chips, span shortcuts, the picker's internals) also
+       uses and none of them should change. */
+    #submit {
+      border-radius: 8px; padding: .7rem 1.75rem; color: #fff;
+      background: linear-gradient(135deg, var(--accent-bright), var(--accent) 70%);
+      box-shadow: 0 1px 2px rgba(11,107,87,.15), 0 4px 14px rgba(11,107,87,.2);
+      transition: transform .15s ease, box-shadow .15s ease, filter .15s ease;
+    }
+    #submit:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 2px 4px rgba(11,107,87,.18), 0 10px 22px rgba(11,107,87,.28); filter: brightness(1.04); }
+    #submit:active:not(:disabled) { transform: translateY(0); }
+    /* #submit's id beats the bare `button:disabled` rule on specificity, so
+       without this the gradient stayed at full strength while the text still
+       went to `--ink-faint` — grey-on-vivid-green, unreadable. */
+    #submit:disabled { background: var(--rule); color: var(--ink-faint); box-shadow: none; }
     .area { background: var(--surface); border: 1px solid var(--rule); border-radius: 4px; padding: 1.5rem; margin: 0 0 1.5rem; }
     .area-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: .75rem; margin-bottom: .25rem; }
     .year { font-size: .8rem; color: var(--ink-faint); }
@@ -98,8 +130,14 @@
     .radio { display: flex; align-items: center; gap: .45rem; font-size: .92rem; }
     select.tall { height: auto; padding: .4rem; }
     .nav-actions { display: flex; align-items: center; gap: .9rem; }
-    .nav-actions .cta { font-size: .85rem; font-weight: 600; text-decoration: none; padding: .35rem .7rem; border-radius: 4px; background: var(--accent); color: #fff; }
-    .nav-actions .cta:hover { filter: brightness(1.08); }
+    .nav-actions .cta {
+      font-size: .85rem; font-weight: 700; text-decoration: none; padding: .45rem .9rem;
+      border-radius: 6px; color: #fff;
+      background: linear-gradient(135deg, var(--accent-bright), var(--accent) 70%);
+      box-shadow: 0 1px 2px rgba(11,107,87,.12), 0 2px 8px rgba(11,107,87,.16);
+      transition: transform .15s ease, box-shadow .15s ease, filter .15s ease;
+    }
+    .nav-actions .cta:hover { transform: translateY(-1px); box-shadow: 0 2px 4px rgba(11,107,87,.16), 0 6px 16px rgba(11,107,87,.22); filter: brightness(1.05); }
     /* Highlights: data-derived superlatives across the compared schools, one
        per area (see e.g. financial_aid.highlights). Deliberately not styled
        like a `.notice` — those are caveats to read before trusting a number,
@@ -148,6 +186,34 @@
     .keys { display: flex; flex-wrap: wrap; gap: .5rem 1.25rem; font-size: .82rem; color: var(--ink-soft); margin: .4rem 0 0; }
     .keys span { display: flex; align-items: center; gap: .4rem; }
     .keys .dot { width: .65rem; height: .65rem; border-radius: 50%; }
+
+    /* --- Front-page hero. SCOPE.md ruled out campus photography on the
+       comparison itself for good reason (no licensing path, works against
+       the "un-brochure" pitch) — this is a deliberate exception for the
+       neutral landing page, on a generic, unbranded building rather than
+       any of the 25 schools in the sample: no photo here can look like the
+       tool is putting its thumb on one school before anyone has picked
+       anything. See templates/index.html for the source/licence note. --- */
+    .hero {
+      display: grid; grid-template-columns: 1.3fr 1fr; gap: 2rem; align-items: center;
+      padding: 2rem; margin: 0 0 1.75rem; border-radius: 14px;
+      border: 1px solid var(--rule);
+      background: linear-gradient(135deg, rgba(217,164,65,.09), rgba(11,107,87,.06)), var(--surface);
+    }
+    .hero-text { position: relative; }
+    .hero-photo { margin: 0; position: relative; border-radius: 10px; overflow: hidden; aspect-ratio: 4 / 3; box-shadow: 0 10px 28px rgba(23,33,29,.14); }
+    .hero-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .hero-photo figcaption { position: absolute; right: 0; bottom: 0; font-size: .68rem; color: #fff; background: rgba(23,33,29,.55); padding: .2rem .55rem; border-radius: 6px 0 0 0; }
+    @media (max-width: 46rem) { .hero { grid-template-columns: 1fr; padding: 1.5rem 1.25rem; } .hero-photo { aspect-ratio: 16 / 9; order: -1; } }
+
+    /* --- Front-page intro: what this is, in three steps, before the form --- */
+    .intro-dek { font-size: 1rem; color: var(--ink-soft); max-width: 42rem; margin: 0 0 1.25rem; line-height: 1.6; }
+    .steps { list-style: none; margin: 0 0 2rem; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.25rem; }
+    @media (max-width: 46rem) { .steps { grid-template-columns: 1fr; } }
+    .steps li { display: flex; gap: .8rem; align-items: flex-start; }
+    .step-num { flex: none; display: flex; align-items: center; justify-content: center; width: 1.8rem; height: 1.8rem; border-radius: 50%; background: linear-gradient(135deg, var(--accent-bright), var(--accent) 70%); box-shadow: 0 2px 6px rgba(11,107,87,.25); color: #fff; font-weight: 700; font-size: .85rem; }
+    .steps strong { display: block; font-size: .92rem; margin-bottom: .15rem; }
+    .steps p { margin: 0; font-size: .85rem; color: var(--ink-soft); line-height: 1.5; }
 
     /* --- Picker: two columns, a searchable school combobox, an area menu --- */
     .picker-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; align-items: start; margin: 0 0 1.75rem; }
