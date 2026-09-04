@@ -12,12 +12,19 @@
     <svg viewBox="0 0 {{ c.width }} {{ c.height }}" role="img"
          aria-label="Share of undergraduates who play a varsity sport, by school">
       {% for bar in c.bars %}
-        <text x="{{ c.label_x }}" y="{{ bar.text_y }}" text-anchor="end"
-              font-size="12" fill="#17211d">{{ bar.name }}</text>
-        <rect x="{{ c.plot_x }}" y="{{ bar.y }}" width="{{ bar.width }}" height="14"
-              rx="2" fill="{{ bar.color }}"></rect>
-        <text x="{{ bar.label_x }}" y="{{ bar.text_y }}" font-size="11"
-              fill="#4f5a54">{{ bar.value }}</text>
+        {# Faint for every school but the one the headline names — see the
+           `.headline` note in base.html. The aid chart below carries no such
+           mark: the headline's second sentence is about the schools at zero,
+           and every one of them is already the shortest bar there. #}
+        <g{% if not bar.lead %} opacity=".32"{% endif %}>
+          <text x="{{ c.label_x }}" y="{{ bar.text_y }}" text-anchor="end"
+                font-size="12" fill="#17211d"
+                {% if bar.lead %}font-weight="700"{% endif %}>{{ bar.name }}</text>
+          <rect x="{{ c.plot_x }}" y="{{ bar.y }}" width="{{ bar.width }}" height="14"
+                rx="2" fill="{{ bar.color }}"></rect>
+          <text x="{{ bar.label_x }}" y="{{ bar.text_y }}" font-size="11"
+                fill="#4f5a54">{{ bar.value }}</text>
+        </g>
       {% endfor %}
     </svg>
   </div>

@@ -88,6 +88,7 @@ import sqlite3
 
 import polars as pl
 
+from app.format import times
 from app.notices import Notice, coverage_notices
 from app.schools import School
 
@@ -552,17 +553,24 @@ def _https(url: str | None) -> str | None:
     return url if url.startswith("http") else f"https://{url}"
 
 
-def highlights(context: dict) -> list[str]:
-    """One line naming the school with the most personal attention here.
+def headline(context: dict, cut: dict | None = None) -> str | None:
+    """The card's finding, in a sentence: how many students each teacher has.
 
-    Optional, like `trend`/`coverage` elsewhere — see financial_aid.highlights
-    for the shared convention.
+    The one figure on an otherwise categorical card that compares — a city
+    and a calendar system do not rank — so it is the only thing a sentence
+    here could honestly be about. This area draws no chart of it; the strip of
+    every other card's sentence sits under this one instead, which is what
+    makes this card the page's summary.
     """
     rows = [row for row in context.get("rows", []) if row.get("student_faculty_ratio")]
     if len(rows) < 2:
-        return []
+        return None
+
     smallest = min(rows, key=lambda row: row["student_faculty_ratio"])
-    return [
-        f"{smallest['school'].short} has the most personal attention here — "
-        f"{smallest['student_faculty_ratio']} students per faculty member."
-    ]
+    largest = max(rows, key=lambda row: row["student_faculty_ratio"])
+    multiple = times(largest["student_faculty_ratio"], smallest["student_faculty_ratio"])
+    return (
+        f"{smallest['school'].short} has {smallest['student_faculty_ratio']} students per "
+        f"faculty member; {largest['school'].short} has "
+        f"{largest['student_faculty_ratio']}{f', {multiple} as many' if multiple else ''}."
+    )

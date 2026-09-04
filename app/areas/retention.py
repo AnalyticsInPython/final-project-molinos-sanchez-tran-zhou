@@ -54,7 +54,7 @@ import sqlite3
 import polars as pl
 
 from app import codes, cuts
-from app.format import percent
+from app.format import join_names, one_in, percent, reciprocal, spell
 from app.notices import coverage_notices
 from app.schools import School
 from app.trend import chart as line_chart
@@ -344,18 +344,31 @@ def load(conn: sqlite3.Connection, schools: list[School], year: int) -> dict:
 
     return {
         "rows": rows,
-        "gap_chart": _gap_chart(rows),
+        "gap_chart": _gap_chart(rows, lead=_lead(rows)),
         "leaving_chart": _leaving_chart(rows),
         "notices": coverage_notices(missing, partial, subject=SUBJECT),
     }
 
 
-def _gap_chart(rows: list[dict]) -> dict | None:
+def _lead(rows: list[dict]) -> set[int]:
+    """The school the headline names: the largest share taking a fifth year."""
+    late = [row for row in rows if row["took_longer"] is not None]
+    if len(late) < 2:
+        return set()
+    return {max(late, key=lambda row: row["took_longer"])["school"].unitid}
+
+
+def _gap_chart(rows: list[dict], lead: set[int] | None = None) -> dict | None:
     """Four-year against six-year completion, widest gap first.
 
     A paired dot rather than two bars: the finding is the distance between the
     two, and a bar chart of 74% against 95% invites reading the taller bar as
     the answer when the space between them is the point.
+
+    `lead` is the school the card's headline names, marked so the template can
+    draw the other rows faint — see the `.headline` note in base.html. No lead
+    marks every bar instead of none: a page with one school has no sentence
+    naming anybody, and drawing its only row faint would say the opposite.
     """
     pairs = [r for r in rows if r["took_longer"] is not None]
     if not pairs:
@@ -389,6 +402,7 @@ def _gap_chart(rows: list[dict]) -> dict | None:
                 "six": percent(row["rate_6yr"], 0),
                 "gap": f"{row['took_longer'] * 100:+.0f} pts",
                 "gap_x": round(x(row["rate_6yr"]) + 10, 1),
+                "lead": not lead or row["school"].unitid in lead,
             }
         )
 
@@ -546,3 +560,84 @@ def trend(conn: sqlite3.Connection, schools: list[School], years: list[int]) -> 
 def coverage(conn: sqlite3.Connection) -> set[tuple[int, int]]:
     """Every (unitid, year) this area can render, for the year picker."""
     return {(row[0], row[1]) for row in conn.execute(COVERAGE_QUERY)}
+
+
+def headline(context: dict, cut: dict | None = None) -> str | None:
+    """The card's finding, in a sentence: the fifth year the headline rate hides.
+
+    Untailored it is `took_longer`, this module's own computed metric, at the
+    school where it is largest and at the school where it is smallest.
+
+    Tailored it is the reader's group against each school's own total from the
+    same survey — the school furthest from its own headline, and the schools
+    that are level with it. **A school, never a student**: "graduates Hispanic
+    students ten points behind its own headline" is a fact about the
+    institution, where "your chance of finishing" would be a prediction about
+    a person this data cannot make. Rule 6 in app/cuts.py.
+    """
+    if cut and cut.get("emphasis") is not None:
+        return _cut_headline(cut)
+
+    late = [row for row in context.get("rows", []) if row["took_longer"] is not None]
+    if len(late) < 2:
+        return None
+
+    most = max(late, key=lambda row: row["took_longer"])
+    least = min(late, key=lambda row: row["took_longer"])
+    denominator = reciprocal(most["took_longer"])
+    first = (
+        f"One {most['school'].short} student in {spell(denominator)} takes more than four "
+        f"years to finish."
+        if denominator
+        else (
+            f"{percent(most['took_longer'], 0)} of {most['school'].short} students take more "
+            f"than four years to finish."
+        )
+    )
+    fewest = one_in(least["took_longer"]) or percent(least["took_longer"], 0)
+    return f"{first} At {least['school'].short} it is {fewest}."
+
+
+def _cut_headline(cut: dict) -> str | None:
+    """Completion for the reader's group beside each school's own total."""
+    own = cut["emphasis"]
+    lead = cuts.furthest(cut["rows"], own)
+    if lead is None:
+        return None
+
+    diff = lead["rates"][own] - lead["total"]
+    group = _group_phrase(own, cut["own_label"])
+    sentence = (
+        f"{lead['school'].short} graduates {group} {cuts.gap_words(diff)} "
+        f"{'ahead of' if diff > 0 else 'behind'} its own headline"
+    )
+    # The schools where the reader's group and everyone land on the same
+    # figure are as much the finding as the school where they do not, and
+    # naming them is what stops the sentence reading as a claim about every
+    # school on the page.
+    level = sorted(
+        (
+            row
+            for row in cut["rows"]
+            if row is not lead
+            and row["rates"].get(own) is not None
+            and row["total"] is not None
+            and round(abs(row["rates"][own] - row["total"]) * 100) <= 1
+        ),
+        key=lambda row: (abs(row["rates"][own] - row["total"]), row["school"].short),
+    )
+    if not level:
+        return f"{sentence}."
+    names = join_names([row["school"].short for row in level])
+    return f"{sentence}; {names} {'is' if len(level) == 1 else 'are'} within a point."
+
+
+def _group_phrase(code: int, label: str) -> str:
+    """The cut's column heading, as a description of people in a sentence.
+
+    Every race label reads as an adjective in front of "students" except the
+    one that is already a phrase — "Two or more races students" is not
+    English, and a card that mislabels a group of students is worse than a
+    card with no sentence on it at all.
+    """
+    return "students of two or more races" if code == 7 else f"{label} students"

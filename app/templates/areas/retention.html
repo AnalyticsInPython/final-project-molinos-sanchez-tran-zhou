@@ -44,21 +44,26 @@
               font-size="11" fill="#7b857e">{{ tick.label }}</text>
       {% endfor %}
       {% for bar in c.bars %}
-        <text x="{{ c.label_x }}" y="{{ bar.text_y }}" text-anchor="end"
-              font-size="12" fill="#17211d">{{ bar.name }}</text>
-        <line x1="{{ bar.x_four }}" y1="{{ bar.y }}" x2="{{ bar.x_six }}" y2="{{ bar.y }}"
-              stroke="#c9d6e4" stroke-width="5" stroke-linecap="round"></line>
-        <circle cx="{{ bar.x_four }}" cy="{{ bar.y }}" r="5.5" fill="#c0692c"
-                stroke="#fff" stroke-width="2">
-          <title>{{ bar.name }} — finished in four years: {{ bar.four }}</title>
-        </circle>
-        <circle cx="{{ bar.x_six }}" cy="{{ bar.y }}" r="5.5" fill="#23557e"
-                stroke="#fff" stroke-width="2">
-          <title>{{ bar.name }} — finished in six years: {{ bar.six }}</title>
-        </circle>
-        <text x="{{ bar.gap_x }}" y="{{ bar.text_y }}" font-size="11" fill="#7b857e">
-          {{ bar.gap }}
-        </text>
+        {# Faint for every school but the one the headline names — see the
+           `.headline` note in base.html. #}
+        <g{% if not bar.lead %} opacity=".32"{% endif %}>
+          <text x="{{ c.label_x }}" y="{{ bar.text_y }}" text-anchor="end"
+                font-size="12" fill="#17211d"
+                {% if bar.lead %}font-weight="700"{% endif %}>{{ bar.name }}</text>
+          <line x1="{{ bar.x_four }}" y1="{{ bar.y }}" x2="{{ bar.x_six }}" y2="{{ bar.y }}"
+                stroke="#c9d6e4" stroke-width="5" stroke-linecap="round"></line>
+          <circle cx="{{ bar.x_four }}" cy="{{ bar.y }}" r="5.5" fill="#c0692c"
+                  stroke="#fff" stroke-width="2">
+            <title>{{ bar.name }} — finished in four years: {{ bar.four }}</title>
+          </circle>
+          <circle cx="{{ bar.x_six }}" cy="{{ bar.y }}" r="5.5" fill="#23557e"
+                  stroke="#fff" stroke-width="2">
+            <title>{{ bar.name }} — finished in six years: {{ bar.six }}</title>
+          </circle>
+          <text x="{{ bar.gap_x }}" y="{{ bar.text_y }}" font-size="11" fill="#7b857e">
+            {{ bar.gap }}
+          </text>
+        </g>
       {% endfor %}
     </svg>
     <p class="keys">

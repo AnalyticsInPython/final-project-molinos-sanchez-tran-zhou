@@ -10,14 +10,19 @@
     <svg viewBox="0 0 {{ c.width }} {{ c.height }}" role="img"
          aria-label="Undergraduate enrollment size and race/ethnicity composition, one bar per school">
       {% for bar in c.bars %}
-        <text x="{{ c.label_x }}" y="{{ bar.text_y }}" text-anchor="end"
-              font-size="12" fill="#17211d">{{ bar.name }}</text>
-        {% for seg in bar.segments %}
-          <rect x="{{ seg.x }}" y="{{ bar.y }}" width="{{ seg.width }}" height="14" fill="{{ seg.color }}">
-            <title>{{ bar.name }} — {{ seg.label }}: {{ seg.pct | percent }}</title>
-          </rect>
-        {% endfor %}
-        <text x="{{ bar.total_x }}" y="{{ bar.text_y }}" font-size="11" fill="#7b857e">{{ bar.total | number }}</text>
+        {# Faint for every school but the one the headline names — see the
+           `.headline` note in base.html. #}
+        <g{% if not bar.lead %} opacity=".32"{% endif %}>
+          <text x="{{ c.label_x }}" y="{{ bar.text_y }}" text-anchor="end"
+                font-size="12" fill="#17211d"
+                {% if bar.lead %}font-weight="700"{% endif %}>{{ bar.name }}</text>
+          {% for seg in bar.segments %}
+            <rect x="{{ seg.x }}" y="{{ bar.y }}" width="{{ seg.width }}" height="14" fill="{{ seg.color }}">
+              <title>{{ bar.name }} — {{ seg.label }}: {{ seg.pct | percent }}</title>
+            </rect>
+          {% endfor %}
+          <text x="{{ bar.total_x }}" y="{{ bar.text_y }}" font-size="11" fill="#7b857e">{{ bar.total | number }}</text>
+        </g>
       {% endfor %}
     </svg>
     <p class="keys">

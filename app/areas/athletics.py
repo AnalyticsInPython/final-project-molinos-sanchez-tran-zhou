@@ -30,7 +30,7 @@ import sqlite3
 
 import polars as pl
 
-from app.format import money, percent
+from app.format import join_names, money, one_in, percent, times
 from app.notices import coverage_notices
 from app.schools import School
 from app.trend import chart as line_chart
@@ -130,14 +130,28 @@ def load(conn: sqlite3.Connection, schools: list[School], year: int) -> dict:
 
     return {
         "rows": rows,
-        "share_chart": _bars(rows, "share", fmt=percent),
+        "share_chart": _bars(rows, "share", fmt=percent, lead=_lead(rows)),
         "aid_chart": _bars(rows, "per_athlete", fmt=money),
         "notices": coverage_notices(missing, [], subject=SUBJECT),
     }
 
 
-def _bars(rows: list[dict], key: str, *, fmt) -> dict | None:
-    """One bar per school in its own colour, widest first."""
+def _lead(rows: list[dict]) -> set[int]:
+    """The school the headline names: the largest share of it on a roster."""
+    shares = [row for row in rows if row["share"] is not None]
+    if len(shares) < 2:
+        return set()
+    return {max(shares, key=lambda row: row["share"])["school"].unitid}
+
+
+def _bars(rows: list[dict], key: str, *, fmt, lead: set[int] | None = None) -> dict | None:
+    """One bar per school in its own colour, widest first.
+
+    `lead` is the school the card's headline names, marked so the template can
+    draw the other bars faint — see the `.headline` note in base.html. No lead
+    marks every bar instead of none: a page with one school has no sentence
+    naming anybody, and drawing its only bar faint would say the opposite.
+    """
     entries = sorted(
         (r for r in rows if r[key] is not None), key=lambda r: r[key], reverse=True
     )
@@ -164,6 +178,7 @@ def _bars(rows: list[dict], key: str, *, fmt) -> dict | None:
             "width": round(max(length, 2), 1),
             "label_x": round(label_w + max(length, 2) + 8, 1),
             "value": fmt(row[key]),
+            "lead": not lead or row["school"].unitid in lead,
         })
 
     return {"width": width, "height": top + row_h * len(entries) + bottom,
@@ -217,3 +232,49 @@ def trend(conn: sqlite3.Connection, schools: list[School], years: list[int]) -> 
 def coverage(conn: sqlite3.Connection) -> set[tuple[int, int]]:
     """Every (unitid, year) this area can render, for the year picker."""
     return {(row[0], row[1]) for row in conn.execute(COVERAGE_QUERY)}
+
+
+def headline(context: dict, cut: dict | None = None) -> str | None:
+    """The card's finding, in a sentence: athlete share, and the $0 that is real.
+
+    Two facts, because the second one is the trap this module exists to keep
+    out of the page. A school reporting no athletic aid has told the truth —
+    Division III awards none — so the sentence says which schools those are
+    and why, rather than leaving a bar at zero to read as missing data.
+
+    This survey carries no breakdowns, so `cut` is always None here.
+    """
+    shares = [row for row in context.get("rows", []) if row["share"] is not None]
+    if len(shares) < 2:
+        return None
+
+    most = max(shares, key=lambda row: row["share"])
+    least = min(shares, key=lambda row: row["share"])
+    phrase = one_in(most["share"])
+    plays = (
+        f"{phrase[0].upper()}{phrase[1:]} {most['school'].short} undergrads plays a varsity sport"
+        if phrase
+        else f"{percent(most['share'])} of {most['school'].short} undergrads play a varsity sport"
+    )
+    multiple = times(most["share"], least["share"])
+    against = (
+        f"{multiple} {least['school'].short}'s share"
+        if multiple
+        else f"against {percent(least['share'])} at {least['school'].short}"
+    )
+    sentence = f"{plays}, {against}."
+
+    free = [row for row in context.get("rows", []) if row["aid"] == 0]
+    if not free:
+        return sentence
+    names = join_names([row["school"].short for row in free])
+    gives = "gives" if len(free) == 1 else "give"
+    # Named only when every school at zero is in the division that explains
+    # it. Where one of them is not, the $0 still stands on its own and the
+    # sentence stops short of a reason it cannot give.
+    because = (
+        ": Division III"
+        if all("Division III" in (row["division"] or "") for row in free)
+        else ""
+    )
+    return f"{sentence} {names} {gives} {money(0)} in athletic aid{because}."
