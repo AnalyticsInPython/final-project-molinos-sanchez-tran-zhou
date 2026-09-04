@@ -197,6 +197,97 @@ def coverage_notices(missing_all, missing_some, *, subject: str, series: bool = 
     return notices
 
 
+def series_notices(
+    schools,
+    years: list[int],
+    seen: set[tuple[int, int]],
+    *,
+    subject: str,
+    source: str = "IPEDS",
+    published: list[int] | None = None,
+    ends: bool = False,
+) -> list[Notice]:
+    """Coverage for a trend view, where the axis is wider than the survey.
+
+    The trend axis is the window the reader asked for, shared by every area on
+    the page, and it therefore runs past the year an individual survey stops.
+    Net price ends in 2021: ask for 2015–2024 and every school is three years
+    short of the axis. Counted naively that is five schools with holes in their
+    data, which is what this page used to say — and it is one survey ending,
+    which is a fact about IPEDS rather than about Berkeley. Naming schools for
+    it is worse than vague: it invites a reader to prefer the school we blamed
+    least, on a difference that does not exist.
+
+    So the years the series does not cover are taken off the table before
+    anyone is named, and the ending is stated once, with no school in it. A
+    school is named only where it lacks a year that another school in the same
+    comparison has — that is the only kind of gap that belongs to a school.
+
+    `published` is every year the survey holds (`db.years_available`) and
+    `ends` says whether it stopped there or we simply loaded no further
+    (`db.series_ends`). Same distinction `age_notice` draws, for the same
+    reason: telling a reader a survey has ended when it has not is a factual
+    error, and the flattering direction to be wrong in.
+
+    Returns the whole list a trend view needs, so an area calls this instead of
+    working out `missing_all` and `missing_some` for itself. Five areas did
+    that arithmetic separately and all five got this wrong the same way.
+    """
+    years = sorted(years)
+    held = sorted(published or [])
+    covered = {year for _, year in seen}
+
+    notices = []
+    if years and held:
+        if years[-1] > held[-1]:
+            notices.append(
+                Notice(
+                    "info",
+                    f"The {subject} series stops at {held[-1]} for every school here; "
+                    + (
+                        f"{source} has published nothing newer."
+                        if ends
+                        else f"that is the newest year this build has loaded, not the "
+                        f"newest {source} publishes."
+                    )
+                    + f" The axis runs to {years[-1]} because other areas do.",
+                )
+            )
+        if years[0] < held[0]:
+            notices.append(
+                Notice(
+                    "info",
+                    f"The {subject} series begins in {held[0]}. The years before it are "
+                    f"empty for every school here, rather than missing from any one of "
+                    f"them.",
+                )
+            )
+
+    # Only the part of the window the survey covers at all can be anyone's gap.
+    within = [year for year in years if not held or held[0] <= year <= held[-1]]
+
+    # `within` empty means the reader asked for a window entirely outside the
+    # series. Nobody is missing anything there; the notice above says why the
+    # page is blank, and naming every school for it is the bug this fixes.
+    missing_all = [
+        school
+        for school in schools
+        if within and not any((school.unitid, year) in seen for year in within)
+    ]
+    absent = {school.unitid for school in missing_all}
+
+    # A year no school in this comparison reports is a hole in the survey, not
+    # in the school. Only years someone here does have can single anyone out.
+    shared = [year for year in within if year in covered]
+    missing_some = [
+        school
+        for school in schools
+        if school.unitid not in absent and any((school.unitid, year) not in seen for year in shared)
+    ]
+
+    return notices + coverage_notices(missing_all, missing_some, subject=subject, series=True)
+
+
 def for_area(
     year,
     coverage: list[Notice],

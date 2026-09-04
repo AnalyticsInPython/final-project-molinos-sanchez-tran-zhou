@@ -14,6 +14,7 @@ from app.notices import (
     age_notice,
     coverage_notices,
     for_area,
+    series_notices,
 )
 from app.schools import School
 
@@ -199,3 +200,195 @@ def test_for_area_hands_the_source_and_the_pooling_through():
 
 def test_notice_is_immutable():
     assert isinstance(Notice("info", "x"), Notice)
+
+
+# --- The trend view, where the axis is wider than the survey ----------------
+#
+# The bug these guard was on the page a day before the demo: asking financial
+# aid for 2015-2024 drew "UC Berkeley, Stanford, MIT, Carnegie Mellon, and
+# Michigan are missing some years in this range", which reads as five schools
+# with holes and is one survey ending in 2021. Every assertion below is either
+# "no school is named for the survey's own end" or "a school is still named for
+# its own gap", because losing the second half would fix the wording by going
+# quiet about a real gap.
+
+NET_PRICE = list(range(2015, 2022))
+FULL_WINDOW = list(range(2015, 2025))
+
+
+def _every_year(schools, years):
+    return {(school.unitid, year) for school in schools for year in years}
+
+
+def test_the_end_of_a_series_is_not_a_schools_gap():
+    """The demo case: 2015-2024 asked of a series that stops at 2021."""
+    schools = [CALTECH, MIT, YALE]
+    notices = series_notices(
+        schools,
+        FULL_WINDOW,
+        _every_year(schools, NET_PRICE),
+        subject="net price",
+        published=NET_PRICE,
+        ends=True,
+    )
+    (notice,) = notices
+    assert "stops at 2021" in notice.text
+    assert "IPEDS has published nothing newer" in notice.text
+    assert "The axis runs to 2024" in notice.text
+    for school in schools:
+        assert school.short not in notice.text
+    assert "missing some years" not in notice.text
+
+
+def test_a_series_that_has_not_ended_does_not_claim_it_has():
+    """Same shape, opposite fact: admissions runs on and this build stopped.
+
+    The flattering branch — "IPEDS publishes nothing newer" — would tell a
+    reader a 2021 admit rate is the best there is when 2024 exists.
+    """
+    schools = [CALTECH, MIT]
+    (notice,) = series_notices(
+        schools,
+        FULL_WINDOW,
+        _every_year(schools, NET_PRICE),
+        subject="admissions",
+        published=NET_PRICE,
+        ends=False,
+    )
+    assert "stops at 2021" in notice.text
+    assert "newest year this build has loaded" in notice.text
+    assert "published nothing newer" not in notice.text
+
+
+def test_the_source_is_the_callers_to_name_here_too():
+    """Athletics is EADA, and crediting IPEDS for its end is a factual error."""
+    schools = [CALTECH]
+    (notice,) = series_notices(
+        schools,
+        list(range(2019, 2027)),
+        _every_year(schools, range(2019, 2025)),
+        subject="athletics",
+        source="EADA",
+        published=list(range(2019, 2025)),
+        ends=True,
+    )
+    assert "EADA has published nothing newer" in notice.text
+    assert "IPEDS" not in notice.text
+
+
+def test_a_window_inside_the_series_says_nothing_at_all():
+    """The demo's own trend flip, 2015-2021. Silence is the right answer."""
+    schools = [CALTECH, MIT, YALE]
+    assert (
+        series_notices(
+            schools,
+            NET_PRICE,
+            _every_year(schools, NET_PRICE),
+            subject="net price",
+            published=NET_PRICE,
+            ends=True,
+        )
+        == []
+    )
+
+
+def test_a_real_gap_still_names_the_school():
+    """The half that must survive the fix.
+
+    MIT is missing 2018 while the other two report it, which is a gap in MIT's
+    reporting rather than in the survey, and the reader looking at a broken
+    line needs to be told whose it is.
+    """
+    schools = [CALTECH, MIT, YALE]
+    seen = _every_year(schools, NET_PRICE) - {(MIT.unitid, 2018)}
+    (notice,) = series_notices(
+        schools, NET_PRICE, seen, subject="net price", published=NET_PRICE, ends=True
+    )
+    assert notice.text.startswith("MIT is missing some years")
+    assert CALTECH.short not in notice.text
+
+
+def test_a_real_gap_and_a_series_end_are_two_separate_sentences():
+    """Both facts at once: the survey stopped, and MIT is short a year inside it."""
+    schools = [CALTECH, MIT, YALE]
+    seen = _every_year(schools, NET_PRICE) - {(MIT.unitid, 2018)}
+    ending, gap = series_notices(
+        schools, FULL_WINDOW, seen, subject="net price", published=NET_PRICE, ends=True
+    )
+    assert "stops at 2021" in ending.text and "MIT" not in ending.text
+    assert "MIT is missing some years" in gap.text
+
+
+def test_a_year_nobody_here_reports_is_nobody_here_s_fault():
+    """A hole every school shares is the survey's, and naming all three for it
+    is the same mistake in a smaller window."""
+    schools = [CALTECH, MIT, YALE]
+    seen = _every_year(schools, [y for y in NET_PRICE if y != 2020])
+    assert (
+        series_notices(
+            schools, NET_PRICE, seen, subject="net price", published=NET_PRICE, ends=True
+        )
+        == []
+    )
+
+
+def test_a_school_that_reports_none_of_the_series_is_still_named():
+    schools = [CALTECH, MIT, YALE]
+    seen = _every_year([CALTECH, YALE], NET_PRICE)
+    (notice,) = series_notices(
+        schools, NET_PRICE, seen, subject="net price", published=NET_PRICE, ends=True
+    )
+    # The strongest sentence the module has, and MIT has earned it: the other
+    # two draw a line across the whole window and MIT draws nothing.
+    assert notice.level == "warn"
+    assert "MIT reports no net price data at all" in notice.text
+
+
+def test_a_window_entirely_past_the_end_blames_nobody():
+    """2022-2024 of a series that stopped in 2021 draws nothing.
+
+    The old arithmetic called that every school reporting nothing at all, which
+    is the strongest accusation the module can make and the least deserved.
+    """
+    schools = [CALTECH, MIT, YALE]
+    (notice,) = series_notices(
+        schools,
+        [2022, 2023, 2024],
+        set(),
+        subject="net price",
+        published=NET_PRICE,
+        ends=True,
+    )
+    assert "stops at 2021" in notice.text
+    for school in schools:
+        assert school.short not in notice.text
+
+
+def test_a_window_that_opens_before_the_series_does():
+    """EADA starts in 2019; a window opened for IPEDS starts four years earlier."""
+    schools = [CALTECH, MIT]
+    years = list(range(2015, 2025))
+    (notice,) = series_notices(
+        schools,
+        years,
+        _every_year(schools, range(2019, 2025)),
+        subject="athletics",
+        source="EADA",
+        published=list(range(2019, 2025)),
+        ends=False,
+    )
+    assert "begins in 2019" in notice.text
+    for school in schools:
+        assert school.short not in notice.text
+
+
+def test_without_a_published_span_nothing_is_asserted_about_the_survey():
+    """`years_available` can come back empty for a table outside the ingest.
+
+    No claim about where the series starts or stops is then available, so none
+    is made — and every requested year is fair game for a per-school gap again.
+    """
+    schools = [CALTECH, MIT]
+    seen = _every_year([CALTECH], NET_PRICE) | _every_year([MIT], NET_PRICE[:-1])
+    (notice,) = series_notices(schools, NET_PRICE, seen, subject="net price")
+    assert "MIT is missing some years" in notice.text

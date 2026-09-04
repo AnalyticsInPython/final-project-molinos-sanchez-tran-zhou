@@ -327,3 +327,75 @@ def test_the_card_offers_tailoring_only_to_a_signed_in_reader(tmp_path, monkeypa
     empty = TestClient(app, cookies={"profile": "blank"}).get(base).text
     assert "Add your income band or home state to your profile" in empty
     assert "Tailored to you" not in empty
+
+
+def _demo_url(marker: str) -> str:
+    """A URL out of DEMO.md, so these follow the script rather than a copy.
+
+    The demo drives the app from that file. A URL that only exists in a test
+    can pass while the one the presenter opens on stage does something else.
+    """
+    demo = (DB_PATH.parent.parent / "DEMO.md").read_text()
+    found = [
+        line.strip()
+        for line in demo.splitlines()
+        if line.startswith("http://127.0.0.1:8001/compare?") and marker in line
+    ]
+    assert len(found) == 1, f"expected one {marker} URL in DEMO.md, found {len(found)}"
+    return found[0].split("8001", 1)[1]
+
+
+def test_the_demo_trend_url_shows_no_coverage_notice():
+    """3:45 in the script: financial aid alone, 2015 to 2021.
+
+    Every school reports every year in that window, so there is nothing to
+    caveat. A notice here would be the presenter reading out a gap that is not
+    on the chart.
+    """
+    pytest.importorskip("httpx")
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    page = TestClient(app).get(_demo_url("year=2015")).text
+    assert "missing some years" not in page
+    assert "report no net price data at all" not in page
+    assert "series stops at" not in page
+    # The chart really is there, so the assertions above are not passing on an
+    # error page that happens to contain none of those strings.
+    assert "How far price depends on income" in page
+
+
+def test_all_available_years_blames_the_survey_and_not_five_schools():
+    """The rehearsal's finding, and the reason `series_notices` exists.
+
+    Flipping the card to every year sends 2015-2024. Net price stops at 2021,
+    so the last three years are empty for everyone — which is IPEDS ending a
+    series, not Berkeley, Stanford, MIT, Carnegie Mellon and Michigan each
+    losing three years of their own data.
+    """
+    pytest.importorskip("httpx")
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+    from app.schools import SHORT_NAMES
+
+    url = (
+        "/compare?"
+        + "&".join(f"school={unitid}" for unitid in FIVE)
+        + "&area=financial_aid&"
+        + "&".join(f"year={y}" for y in range(2015, 2025))
+    )
+    page = TestClient(app).get(url).text
+
+    assert "The net price series stops at 2021 for every school here" in page
+    assert "IPEDS has published nothing newer" in page
+    assert "The axis runs to 2024" in page
+    assert "missing some years" not in page
+
+    # No school is named in the notice strip. Checked on the strip alone: the
+    # chart's own end labels carry every school's name and always will.
+    strip = re.findall(r'<li class="notice[^"]*">(.*?)</li>', page, re.S)
+    assert strip, "no notices rendered — the assertion below would pass vacuously"
+    for unitid in FIVE:
+        assert not any(SHORT_NAMES[unitid] in notice for notice in strip), unitid

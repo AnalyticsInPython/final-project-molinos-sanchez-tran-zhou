@@ -30,8 +30,9 @@ import sqlite3
 
 import polars as pl
 
+from app.db import series_ends, years_available
 from app.format import money, percent
-from app.notices import coverage_notices
+from app.notices import coverage_notices, series_notices
 from app.schools import School
 from app.trend import chart as line_chart
 
@@ -172,24 +173,30 @@ def _bars(rows: list[dict], key: str, *, fmt) -> dict | None:
 
 def trend(conn: sqlite3.Connection, schools: list[School], years: list[int]) -> dict:
     """Athlete share and aid per athlete across the requested window."""
+    # Where the survey itself starts and stops, so a year past the end of it is
+    # not read as a hole in a school's reporting. EADA begins in 2019 here, and
+    # a window opened for an IPEDS area starts four years earlier than that.
+    published = years_available(conn, TABLE)
+    stopped = series_ends(conn, TABLE)
+
     frame = pl.read_database(
         TREND_QUERY.format(first=int(min(years)), last=int(max(years))), conn
     )
     if frame.is_empty():
         return {"panels": [],
-                "notices": coverage_notices(list(schools), [], subject=SUBJECT, series=True)}
+                "notices": series_notices(schools, years, set(), subject=SUBJECT,
+                                          source=SOURCE, published=published, ends=stopped)}
 
     frame = frame.filter(pl.col("unitid").is_in([s.unitid for s in schools]))
     records = frame.to_dicts()
 
     share, per_athlete = {}, {}
-    seen, reported = set(), set()
+    seen = set()
     for r in records:
         athletes = (r.get("men") or 0) + (r.get("women") or 0)
         if not r.get("enrolled") or not athletes:
             continue
         key = (r["unitid"], r["year"])
-        reported.add(r["unitid"])
         seen.add(key)
         share[key] = athletes / r["enrolled"]
         if r.get("aid") is not None:
@@ -204,13 +211,10 @@ def trend(conn: sqlite3.Connection, schools: list[School], years: list[int]) -> 
          "chart": line_chart(schools, years, per_athlete, fmt=money)},
     ]
 
-    missing_all = [s for s in schools if s.unitid not in reported]
-    missing_some = [s for s in schools if s.unitid in reported
-                    and any((s.unitid, y) not in seen for y in years)]
-
     return {
         "panels": [p for p in panels if p["chart"]],
-        "notices": coverage_notices(missing_all, missing_some, subject=SUBJECT, series=True),
+        "notices": series_notices(schools, years, seen, subject=SUBJECT, source=SOURCE,
+                                  published=published, ends=stopped),
     }
 
 

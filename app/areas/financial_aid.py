@@ -22,8 +22,9 @@ import sqlite3
 
 import polars as pl
 
+from app.db import series_ends, years_available
 from app.format import money
-from app.notices import Notice, coverage_notices
+from app.notices import Notice, coverage_notices, series_notices
 from app.offers import IN_STATE, OUT_OF_STATE, school_state
 from app.schools import School
 from app.trend import chart as line_chart
@@ -545,13 +546,24 @@ def trend(conn: sqlite3.Connection, schools: list[School], years: list[int]) -> 
     mix of families who enrolled as much as with any price, and it is the exact
     number this project exists to argue against.
     """
-    frame = pl.read_database(
-        TREND_QUERY.format(first=int(min(years)), last=int(max(years))), conn
-    )
+    # Where the survey itself starts and stops, so a year past the end of it is
+    # not read as a hole in a school's reporting. See notices.series_notices.
+    published = years_available(conn, TABLE)
+    stopped = series_ends(conn, TABLE)
+
+    frame = pl.read_database(TREND_QUERY.format(first=int(min(years)), last=int(max(years))), conn)
     if frame.is_empty():
         return {
             "panels": [],
-            "notices": coverage_notices(list(schools), [], subject=SUBJECT, series=True),
+            "notices": series_notices(
+                schools,
+                years,
+                set(),
+                subject=SUBJECT,
+                source=SOURCE,
+                published=published,
+                ends=stopped,
+            ),
         }
 
     frame = frame.with_columns(
@@ -562,10 +574,9 @@ def trend(conn: sqlite3.Connection, schools: list[School], years: list[int]) -> 
     ).filter(pl.col("unitid").is_in([s.unitid for s in schools]))
 
     lowest, spread = {}, {}
-    reported, seen = set(), set()
+    seen = set()
     for record in frame.to_dicts():
         key = (record["unitid"], record["year"])
-        reported.add(record["unitid"])
         if record["income_level"] == 1:
             lowest[key] = record["net_price"]
         if record["income_level"] in (1, 5) and record["net_price"] is not None:
@@ -596,17 +607,16 @@ def trend(conn: sqlite3.Connection, schools: list[School], years: list[int]) -> 
         },
     ]
 
-    missing_all = [s for s in schools if s.unitid not in reported]
-    missing_some = [
-        s
-        for s in schools
-        if s.unitid in reported and any((s.unitid, y) not in seen for y in years)
-    ]
-
     return {
         "panels": [p for p in panels if p["chart"]],
-        "notices": coverage_notices(
-            missing_all, missing_some, subject=SUBJECT, series=True
+        "notices": series_notices(
+            schools,
+            years,
+            seen,
+            subject=SUBJECT,
+            source=SOURCE,
+            published=published,
+            ends=stopped,
         ),
     }
 

@@ -27,8 +27,9 @@ import sqlite3
 import polars as pl
 
 from app import codes, cuts
+from app.db import series_ends, years_available
 from app.format import number, percent
-from app.notices import coverage_notices
+from app.notices import coverage_notices, series_notices
 from app.schools import School
 from app.trend import chart as line_chart
 
@@ -331,11 +332,18 @@ def trend(conn: sqlite3.Connection, schools: list[School], years: list[int]) -> 
     20% and an application count in the tens of thousands share no axis, and
     forcing them onto one would flatten whichever lost.
     """
+    # Where the survey itself starts and stops, so a year past the end of it is
+    # not read as a hole in a school's reporting. See notices.series_notices.
+    published = years_available(conn, TABLE)
+    stopped = series_ends(conn, TABLE)
+
     frame = pl.read_database(TREND_QUERY.format(first=int(min(years)), last=int(max(years))), conn)
     if frame.is_empty():
         return {
             "panels": [],
-            "notices": coverage_notices(list(schools), [], subject=SUBJECT, series=True),
+            "notices": series_notices(
+                schools, years, set(), subject=SUBJECT, published=published, ends=stopped
+            ),
         }
 
     frame = frame.with_columns(
@@ -363,7 +371,6 @@ def trend(conn: sqlite3.Connection, schools: list[School], years: list[int]) -> 
 
     records = frame.to_dicts()
     seen = {(r["unitid"], r["year"]) for r in records}
-    reported = {r["unitid"] for r in records}
 
     def values(field):
         return {(r["unitid"], r["year"]): r[field] for r in records}
@@ -386,14 +393,11 @@ def trend(conn: sqlite3.Connection, schools: list[School], years: list[int]) -> 
         },
     ]
 
-    missing_all = [s for s in schools if s.unitid not in reported]
-    missing_some = [
-        s for s in schools if s.unitid in reported and any((s.unitid, y) not in seen for y in years)
-    ]
-
     return {
         "panels": [p for p in panels if p["chart"]],
-        "notices": coverage_notices(missing_all, missing_some, subject=SUBJECT, series=True),
+        "notices": series_notices(
+            schools, years, seen, subject=SUBJECT, published=published, ends=stopped
+        ),
     }
 
 

@@ -40,8 +40,9 @@ import sqlite3
 import polars as pl
 
 from app import codes
+from app.db import series_ends, years_available
 from app.format import percent
-from app.notices import coverage_notices
+from app.notices import coverage_notices, series_notices
 from app.schools import School
 from app.trend import chart as line_chart
 
@@ -232,18 +233,22 @@ def _composition_chart(rows: list[dict]) -> dict | None:
 
 def trend(conn: sqlite3.Connection, schools: list[School], years: list[int]) -> dict:
     """International share and women's share of undergrad enrollment, over time."""
-    frame = pl.read_database(
-        TREND_QUERY.format(first=int(min(years)), last=int(max(years))), conn
-    )
+    # Where the survey itself starts and stops, so a year past the end of it is
+    # not read as a hole in a school's reporting. See notices.series_notices.
+    published = years_available(conn, TABLE)
+    stopped = series_ends(conn, TABLE)
+
+    frame = pl.read_database(TREND_QUERY.format(first=int(min(years)), last=int(max(years))), conn)
     if frame.is_empty():
         return {
             "panels": [],
-            "notices": coverage_notices(list(schools), [], subject=SUBJECT, series=True),
+            "notices": series_notices(
+                schools, years, set(), subject=SUBJECT, published=published, ends=stopped
+            ),
         }
 
     frame = frame.filter(pl.col("unitid").is_in([s.unitid for s in schools]))
     records = frame.to_dicts()
-    reported = {r["unitid"] for r in records}
     seen = {(r["unitid"], r["year"]) for r in records if r["race"] == 99 and r["sex"] == 99}
 
     def by_key(race: int, sex: int) -> dict:
@@ -278,14 +283,11 @@ def trend(conn: sqlite3.Connection, schools: list[School], years: list[int]) -> 
         },
     ]
 
-    missing_all = [s for s in schools if s.unitid not in reported]
-    missing_some = [
-        s for s in schools if s.unitid in reported and any((s.unitid, y) not in seen for y in years)
-    ]
-
     return {
         "panels": [p for p in panels if p["chart"]],
-        "notices": coverage_notices(missing_all, missing_some, subject=SUBJECT, series=True),
+        "notices": series_notices(
+            schools, years, seen, subject=SUBJECT, published=published, ends=stopped
+        ),
     }
 
 
